@@ -1,0 +1,9 @@
+[
+  {
+    "id": "main-st-to-library",
+    "name": "Flushing-Main St station to Queens Public Library at Flushing",
+    "from_place": ["Flushing–Main Street", "Flushing-Main Street", "Flushing - Main Street"],
+    "to_place": ["Queens Public Library", "Flushing Library"],
+    "suggested_limits_m": [400, 150, 100]
+  }
+]

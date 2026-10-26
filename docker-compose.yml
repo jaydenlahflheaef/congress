@@ -1,0 +1,8 @@
+# Optional. Local use only; this project does not deploy anywhere by itself.
+services:
+  restroute:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data/pilot:/app/data/pilot:ro

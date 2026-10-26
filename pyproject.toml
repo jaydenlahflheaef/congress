@@ -1,0 +1,17 @@
+# Used by Vercel to deploy Rest Route (see DEPLOY.md).
+# Only the packages the running server needs are listed here, to keep the
+# serverless bundle small. The data import and tests use backend/requirements.txt.
+[project]
+name = "rest-route"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.162.0",
+    "pydantic==2.13.5",
+    "shapely==2.2.0",
+    "pyproj==3.8.0",
+]
+
+[tool.vercel.scripts]
+# Build the React frontend; the FastAPI app serves frontend/dist.
+build = "cd frontend && npm ci && npm run build"

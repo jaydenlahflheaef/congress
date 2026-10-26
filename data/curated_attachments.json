@@ -1,0 +1,3 @@
+{
+  "_comment": "Optional. Map a seat id to the walkway segment id it should attach to, for seats whose automatic attachment was ambiguous. Segment ids look like e:<osm_u>-<osm_v>-<key>. Keys starting with _ are ignored."
+}

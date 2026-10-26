@@ -1,0 +1,2 @@
+audit_id,date,observer,kind,seat_id_or_route,expected_from_app,observed,matches,photo_ref,notes
+EXAMPLE-ONLY,YYYY-MM-DD,initials,seat,dot-XXXX,"Bench, backrest yes, on record","Bench present, backrest yes",yes,IMG_0001,"Delete this row; it only shows the format."

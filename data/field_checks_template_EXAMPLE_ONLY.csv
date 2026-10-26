@@ -1,0 +1,2 @@
+seat_id,checked_at,observed_status,notes,checker
+dot-EXAMPLE123,2026-11-01,present,"Example row only. Copy real observations into field_checks.csv. observed_status is present, missing or unusable.",initials

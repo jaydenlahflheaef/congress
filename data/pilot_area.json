@@ -1,0 +1,12 @@
+{
+  "name": "Downtown Flushing pilot",
+  "description": "Approximate rectangle centered on Main St and Roosevelt Ave in Flushing, Queens, about 1.4 km across, including Main St east to Parsons Blvd. The edges are approximate; check the dashed outline on the map after importing and edit these coordinates if needed. Trips must start and end inside this outline. The router also loads walkways in a 400 m buffer around it so trips near the edge can detour.",
+  "service_polygon_lonlat": [
+    [-73.8350, 40.7530],
+    [-73.8180, 40.7530],
+    [-73.8180, 40.7660],
+    [-73.8350, 40.7660],
+    [-73.8350, 40.7530]
+  ],
+  "routing_buffer_m": 400
+}
