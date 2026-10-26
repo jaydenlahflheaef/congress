@@ -6,3 +6,4 @@ services:
       - "8000:8000"
     volumes:
       - ./data/pilot:/app/data/pilot:ro
+      - ./data/areas:/app/data/areas

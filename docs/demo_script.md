@@ -1,3 +1,5 @@
+> Open **How it works → Try an example walk** (or `/#example`) before following the fictional demonstration below. The main page now plans real walks using on-demand OSM areas; it has no Flushing/demo mode chooser.
+
 # Demonstration steps
 
 A click-by-click run of the app for recording or for judges. Narration is yours to write; this only lists what to show.
@@ -11,13 +13,13 @@ A click-by-click run of the app for recording or for judges. Narration is yours 
 ## Part A: the slider, on the synthetic demo (always works offline)
 
 1. Choose **Demo (synthetic)**. Point out the purple "Demo mode, not a real place" note.
-2. Saved demo trips → **Library to Clinic (slider demo)**. The slider jumps to 400 m.
+2. Example walks → **Library to Clinic (slider demo)**. The slider jumps to 400 m.
    * Expected: "Within your selected limit (400 m)", 622 m total, 1 planned rest on Main St.
 3. Type **150** (or drag). Expected: route switches to the back street, 904 m, 8 rests, longest leg 136 m, +288 m vs the shortest walk (gray dotted line).
 4. Type **100**. Expected: "Limit not met", "The smallest achievable longest gap is 136 m", two amber dashed legs. Click an amber leg in the itinerary to zoom to it.
 5. Tap one of the gray dashed seat markers on Main St: "Not counted: Leaning bar…". This is why Main St fails at 150 m even though it has street furniture every 150 m.
 6. Back at 400 m, press **Exclude this seat** on the Main St bench. Expected: recalculates to 868 m via the back street. Press **Restore**.
-7. Saved demo trips → **Library to River Walk Overlook**: "No connected walking route". The river bench is 43 m from the clinic but there is no bridge in the map.
+7. Example walks → **Library to River Walk Overlook**: "No connected walking route". The river bench is 43 m from the clinic but there is no bridge in the map.
 8. Back to the slider demo at **100 m**. Open **Propose a bench (planning experiment)**, press **Place a hypothetical bench**, and click on the back street in the middle of the long amber stretch (between seats 4 and 5). Expected: "Within your selected limit (100 m)", a purple dashed stop, and a with/without table (without: limit not met, longest leg 136 m). Press **Clear all** to go back.
 9. **Print route summary** (or the browser's print preview) to show the text-only plan.
 

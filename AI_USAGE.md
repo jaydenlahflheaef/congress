@@ -32,3 +32,7 @@ _Fill in after reviewing. List files or functions you wrote or substantially cha
 ## How the student checked the AI's work **(student)**
 
 _Fill in: for example, which parts of `docs/algorithm.md` you can explain without notes, tests you re-ran, field checks you did._
+
+## Codex update — 2026-10-26
+
+At the owner’s request, Codex simplified the planner, moved the fictional example into How it works, added worldwide explicit Photon search and background OSM neighborhood preparation, updated mobile layout and tests, and documented the persistent hosting/iOS path. Existing routing math and seat attachment rules were reused. Real-data verification used a public Boston walking area; it is not a field check or evidence of global coverage. The owner has not been credited with unverified contributions. See docs/interface-update.md for checks executed.

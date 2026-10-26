@@ -11,7 +11,7 @@ SLIDER_MAX_M = 500
 SLIDER_STEP_M = 10
 SLIDER_DEFAULT_M = 150
 
-DatasetMode = Literal["live_pilot", "synthetic_demo"]
+DatasetMode = Literal["live_pilot", "synthetic_demo", "nearby"]
 RouteStatus = Literal[
     "ok",
     "limit_unmet",
@@ -28,12 +28,18 @@ class LatLon(BaseModel):
     lon: float = Field(ge=-180, le=180)
 
 
+class AreaRequest(BaseModel):
+    origin: LatLon
+    destination: LatLon
+
+
 class RouteRequest(BaseModel):
     origin: LatLon
     destination: LatLon
     max_gap_m: float = Field(ge=SLIDER_MIN_M, le=SLIDER_MAX_M)
     excluded_seat_ids: list[str] = Field(default_factory=list, max_length=500)
-    dataset_mode: DatasetMode = "synthetic_demo"
+    dataset_mode: DatasetMode = "nearby"
+    dataset_id: str | None = Field(default=None, max_length=64)
     client_request_id: str | None = Field(default=None, max_length=64)
     # Optional planning experiment: up to 3 hypothetical benches, never stored.
     hypothetical_seats: list[LatLon] = Field(default_factory=list, max_length=3)

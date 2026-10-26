@@ -1,13 +1,13 @@
-export type Mode = 'live_pilot' | 'synthetic_demo';
+export type Mode = "live_pilot" | "synthetic_demo" | "nearby";
 
 export type RouteStatus =
-  | 'ok'
-  | 'limit_unmet'
-  | 'disconnected'
-  | 'unsupported_area'
-  | 'data_unavailable'
-  | 'endpoint_unresolved'
-  | 'error';
+  | "ok"
+  | "limit_unmet"
+  | "disconnected"
+  | "unsupported_area"
+  | "data_unavailable"
+  | "endpoint_unresolved"
+  | "error";
 
 export interface LatLon {
   lat: number;
@@ -56,7 +56,13 @@ export interface Stop extends Seat {
 }
 
 export interface HypotheticalInfo {
-  benches: { id: string; label: string; lat: number; lon: number; moved_m: number }[];
+  benches: {
+    id: string;
+    label: string;
+    lat: number;
+    lon: number;
+    moved_m: number;
+  }[];
   used: string[];
   without: {
     status: RouteStatus;
@@ -80,13 +86,13 @@ export interface Leg {
 }
 
 export interface GeoJSONLine {
-  type: 'Feature';
+  type: "Feature";
   properties: Record<string, unknown>;
-  geometry: { type: 'LineString'; coordinates: [number, number][] };
+  geometry: { type: "LineString"; coordinates: [number, number][] };
 }
 
 export interface FeatureCollection {
-  type: 'FeatureCollection';
+  type: "FeatureCollection";
   features: GeoJSONLine[];
 }
 
@@ -158,4 +164,12 @@ export interface Place extends LatLon {
   name: string;
   category: string | null;
   source: string;
+}
+
+export interface AreaResponse {
+  status: "loading" | "ready" | "error" | "busy";
+  dataset_id?: string;
+  message: string;
+  config?: ModeConfig;
+  seats?: Seat[];
 }

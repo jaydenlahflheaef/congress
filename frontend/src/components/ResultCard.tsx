@@ -1,5 +1,5 @@
-import type { RouteResponse, Seat, Stop } from '../types';
-import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo } from '../format';
+import type { RouteResponse, Seat, Stop } from "../types";
+import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo } from "../format";
 
 interface Props {
   result: RouteResponse | null;
@@ -16,7 +16,13 @@ interface Props {
   limitationNote: string;
 }
 
-function StopDetails({ stop, onExclude }: { stop: Stop; onExclude: (id: string) => void }) {
+function StopDetails({
+  stop,
+  onExclude,
+}: {
+  stop: Stop;
+  onExclude: (id: string) => void;
+}) {
   if (stop.hypothetical) {
     return (
       <li className="stop hyp">
@@ -28,7 +34,9 @@ function StopDetails({ stop, onExclude }: { stop: Stop; onExclude: (id: string) 
             <strong>
               Stop {stop.number}: {stop.label}
             </strong>
-            <div className="muted">Not a real seat. Placed by you as a planning experiment.</div>
+            <div className="muted">
+              Not a real seat. Placed by you as a planning experiment.
+            </div>
           </div>
         </div>
       </li>
@@ -36,7 +44,7 @@ function StopDetails({ stop, onExclude }: { stop: Stop; onExclude: (id: string) 
   }
   const verified = stop.last_field_verified_at
     ? `Field-checked ${fmtDate(stop.last_field_verified_at)} (still may be occupied)`
-    : 'On record only; not field-checked';
+    : "On record only; not field-checked";
   return (
     <li className="stop">
       <div className="stop-head">
@@ -50,19 +58,30 @@ function StopDetails({ stop, onExclude }: { stop: Stop; onExclude: (id: string) 
           <div className="muted">{stop.type_label}</div>
         </div>
       </div>
-      <dl className="seat-facts">
-        <dt>Source</dt>
-        <dd>{[...new Set(stop.source_refs.map((r) => sourceName(r.source)))].join(' + ')}</dd>
-        <dt>Backrest</dt>
-        <dd>{yesNo(stop.backrest)}</dd>
-        <dt>Covered</dt>
-        <dd>{yesNo(stop.covered)}</dd>
-        <dt>Status</dt>
-        <dd>{verified}</dd>
-        <dt>Imported</dt>
-        <dd>{fmtDate(stop.imported_at)}</dd>
-      </dl>
-      <button type="button" className="btn small" onClick={() => onExclude(stop.id)}>
+      <details className="seat-details">
+        <summary>Seat details & source</summary>
+        <dl className="seat-facts">
+          <dt>Source</dt>
+          <dd>
+            {[
+              ...new Set(stop.source_refs.map((r) => sourceName(r.source))),
+            ].join(" + ")}
+          </dd>
+          <dt>Backrest</dt>
+          <dd>{yesNo(stop.backrest)}</dd>
+          <dt>Covered</dt>
+          <dd>{yesNo(stop.covered)}</dd>
+          <dt>Status</dt>
+          <dd>{verified}</dd>
+          <dt>Imported</dt>
+          <dd>{fmtDate(stop.imported_at)}</dd>
+        </dl>
+      </details>
+      <button
+        type="button"
+        className="btn small"
+        onClick={() => onExclude(stop.id)}
+      >
         Exclude this seat
       </button>
     </li>
@@ -75,16 +94,25 @@ export function ResultCard(props: Props) {
   if (!result && !pending && !networkError) {
     return (
       <section className="card result" aria-label="Route result">
-        <p className="muted">Choose a start and a destination, set how far you want to walk between rests, then press Find route.</p>
+        <p className="muted">
+          Choose a start and a destination, set how far you want to walk between
+          rests, then press Find route.
+        </p>
       </section>
     );
   }
 
-  const stale = !!result && (pending || result.requested_max_gap_m !== currentMaxGap);
-  const hasRoute = !!result && (result.status === 'ok' || result.status === 'limit_unmet');
+  const stale =
+    !!result && (pending || result.requested_max_gap_m !== currentMaxGap);
+  const hasRoute =
+    !!result && (result.status === "ok" || result.status === "limit_unmet");
 
   return (
-    <section className="card result" aria-label="Route result" aria-busy={pending}>
+    <section
+      className="card result"
+      aria-label="Route result"
+      aria-busy={pending}
+    >
       {networkError && (
         <p className="notice error" role="alert">
           {networkError}
@@ -92,15 +120,28 @@ export function ResultCard(props: Props) {
       )}
       {stale && (
         <p className="notice updating" role="status">
-          Updating for {currentMaxGap} m… showing the previous result for {result!.requested_max_gap_m} m.
+          Updating for {currentMaxGap} m… showing the previous result for{" "}
+          {result!.requested_max_gap_m} m.
         </p>
       )}
-      {!result && pending && <p className="notice updating" role="status">Finding a route…</p>}
+      {!result && pending && (
+        <p className="notice updating" role="status">
+          Finding a route…
+        </p>
+      )}
       {result && (
-        <div className={stale ? 'dim' : undefined}>
-          <h2 className={`status status-${result.status}`} data-testid="status-heading">
+        <div className={stale ? "dim" : undefined}>
+          <h2
+            className={`status status-${result.status}`}
+            data-testid="status-heading"
+          >
             {STATUS_HEADINGS[result.status] ?? result.status}
-            {result.status === 'ok' && <span className="status-limit"> ({result.requested_max_gap_m} m)</span>}
+            {result.status === "ok" && (
+              <span className="status-limit">
+                {" "}
+                ({result.requested_max_gap_m} m)
+              </span>
+            )}
           </h2>
           <p data-testid="status-message">{result.message}</p>
 
@@ -109,11 +150,18 @@ export function ResultCard(props: Props) {
               <dl className="metrics">
                 <div>
                   <dt>Total distance</dt>
-                  <dd data-testid="metric-total">{fmtM(result.total_distance_m)}</dd>
+                  <dd data-testid="metric-total">
+                    {fmtM(result.total_distance_m)}
+                  </dd>
                 </div>
                 <div>
-                  <dt>Longest leg</dt>
-                  <dd data-testid="metric-longest" className={result.status === 'limit_unmet' ? 'amber' : undefined}>
+                  <dt>Longest stretch</dt>
+                  <dd
+                    data-testid="metric-longest"
+                    className={
+                      result.status === "limit_unmet" ? "amber" : undefined
+                    }
+                  >
                     {fmtM(result.longest_gap_m)}
                   </dd>
                 </div>
@@ -122,22 +170,29 @@ export function ResultCard(props: Props) {
                   <dd data-testid="metric-rests">{result.rest_count}</dd>
                 </div>
                 <div>
-                  <dt>Extra vs shortest walk</dt>
+                  <dt>Added for rests</dt>
                   <dd data-testid="metric-extra">
                     +{fmtM(result.extra_distance_m)}
-                    <span className="muted small"> (shortest {fmtM(result.comparison_distance_m)})</span>
+                    <span className="muted small">
+                      {" "}
+                      (shortest {fmtM(result.comparison_distance_m)})
+                    </span>
                   </dd>
                 </div>
               </dl>
 
-              <h3>Itinerary</h3>
+              <h3>Your walk, step by step</h3>
               <ol className="legs" data-testid="leg-list">
                 {result.legs.map((leg) => (
                   <li key={leg.index}>
                     <button
                       type="button"
-                      className={`leg ${leg.over_limit ? 'over' : ''} ${props.selectedLeg === leg.index ? 'selected' : ''}`}
-                      onClick={() => props.onSelectLeg(props.selectedLeg === leg.index ? null : leg.index)}
+                      className={`leg ${leg.over_limit ? "over" : ""} ${props.selectedLeg === leg.index ? "selected" : ""}`}
+                      onClick={() =>
+                        props.onSelectLeg(
+                          props.selectedLeg === leg.index ? null : leg.index,
+                        )
+                      }
                       aria-pressed={props.selectedLeg === leg.index}
                     >
                       <span>
@@ -145,7 +200,9 @@ export function ResultCard(props: Props) {
                       </span>
                       <span className="leg-dist">{fmtM(leg.distance_m)}</span>
                       {leg.over_limit && (
-                        <span className="tag amber">over your limit by {fmtM(leg.exceeds_by_m)}</span>
+                        <span className="tag amber">
+                          over your limit by {fmtM(leg.exceeds_by_m)}
+                        </span>
                       )}
                     </button>
                   </li>
@@ -157,7 +214,11 @@ export function ResultCard(props: Props) {
                   <h3>Planned rests</h3>
                   <ol className="stops">
                     {result.stops.map((s) => (
-                      <StopDetails key={s.id} stop={s} onExclude={props.onExclude} />
+                      <StopDetails
+                        key={s.id}
+                        stop={s}
+                        onExclude={props.onExclude}
+                      />
                     ))}
                   </ol>
                 </>
@@ -167,7 +228,10 @@ export function ResultCard(props: Props) {
 
           {result.hypothetical && hasRoute && (
             <div className="hypo-compare" data-testid="hypo-compare">
-              <h3>With vs without your hypothetical bench{result.hypothetical.benches.length > 1 ? 'es' : ''}</h3>
+              <h3>
+                With vs without your hypothetical bench
+                {result.hypothetical.benches.length > 1 ? "es" : ""}
+              </h3>
               <table>
                 <thead>
                   <tr>
@@ -179,8 +243,16 @@ export function ResultCard(props: Props) {
                 <tbody>
                   <tr>
                     <th scope="row">Result</th>
-                    <td>{result.hypothetical.without.status === 'ok' ? 'Within limit' : 'Limit not met'}</td>
-                    <td>{result.status === 'ok' ? 'Within limit' : 'Limit not met'}</td>
+                    <td>
+                      {result.hypothetical.without.status === "ok"
+                        ? "Within limit"
+                        : "Limit not met"}
+                    </td>
+                    <td>
+                      {result.status === "ok"
+                        ? "Within limit"
+                        : "Limit not met"}
+                    </td>
                   </tr>
                   <tr>
                     <th scope="row">Longest leg</th>
@@ -189,13 +261,17 @@ export function ResultCard(props: Props) {
                   </tr>
                   <tr>
                     <th scope="row">Total</th>
-                    <td>{fmtM(result.hypothetical.without.total_distance_m)}</td>
+                    <td>
+                      {fmtM(result.hypothetical.without.total_distance_m)}
+                    </td>
                     <td>{fmtM(result.total_distance_m)}</td>
                   </tr>
                 </tbody>
               </table>
               {result.hypothetical.used.length === 0 && (
-                <p className="small">The best route does not use your hypothetical bench.</p>
+                <p className="small">
+                  The best route does not use your hypothetical bench.
+                </p>
               )}
               <p className="muted small">{result.hypothetical.note}</p>
             </div>
@@ -207,8 +283,12 @@ export function ResultCard(props: Props) {
               <ul>
                 {props.excluded.map((id) => (
                   <li key={id}>
-                    {props.seatsById[id]?.label || id}{' '}
-                    <button type="button" className="btn small" onClick={() => props.onRestore(id)}>
+                    {props.seatsById[id]?.label || id}{" "}
+                    <button
+                      type="button"
+                      className="btn small"
+                      onClick={() => props.onRestore(id)}
+                    >
                       Restore
                     </button>
                   </li>
@@ -218,16 +298,24 @@ export function ResultCard(props: Props) {
           )}
 
           {result.warnings.length > 0 && (
-            <ul className="warnings">
-              {result.warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+            <details className="data-details">
+              <summary>Map notes ({result.warnings.length})</summary>
+              <ul className="warnings">
+                {result.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </details>
           )}
 
           <p className="provenance muted small">
-            Data: {result.data_mode === 'synthetic_demo' ? 'synthetic demo (fictional)' : 'Flushing pilot'} · version{' '}
-            {result.dataset_version ?? 'n/a'}
+            Data:{" "}
+            {result.data_mode === "synthetic_demo"
+              ? "synthetic demo (fictional)"
+              : result.data_mode === "nearby"
+                ? "OpenStreetMap paths and seats"
+                : "Flushing pilot"}{" "}
+            · version {result.dataset_version ?? "n/a"}
           </p>
           {hasRoute && (
             <button type="button" className="btn" onClick={props.onPrint}>

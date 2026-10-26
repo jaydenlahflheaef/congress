@@ -37,7 +37,7 @@ def test_health_and_config(client):
     assert h["modes"] == {"synthetic_demo": "ready", "live_pilot": "data_unavailable"}
     cfg = client.get("/api/config").json()
     assert cfg["slider"] == {"min_m": 50, "max_m": 500, "step_m": 10, "default_m": 150}
-    assert cfg["default_mode"] == "synthetic_demo"
+    assert cfg["default_mode"] == "nearby"
     assert cfg["modes"]["live_pilot"]["available"] is False
     assert "has not been imported" in cfg["modes"]["live_pilot"]["reason"]
     syn = cfg["modes"]["synthetic_demo"]

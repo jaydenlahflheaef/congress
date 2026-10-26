@@ -2,7 +2,8 @@
 
 Run for development:  uvicorn app.main:app --reload   (from backend/)
 
-Datasets load once at startup; route requests only touch in-memory data,
+Prepared datasets load at startup; new nearby areas load in a background worker.
+Route requests only touch in-memory data,
 so dragging the slider never calls OpenStreetMap, NYC Open Data or any
 outside routing service. Request bodies (which contain trip endpoints) are
 never logged.
@@ -20,7 +21,10 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data.dataset import DEFAULT_PILOT_DIR, REPO_ROOT, DataUnavailable, Dataset, load_live, load_synthetic
+from .data.nearby import NearbyAreas
+from .data.geocoder import search_world
 from .models.schemas import (
+    AreaRequest,
     SLIDER_DEFAULT_M,
     SLIDER_MAX_M,
     SLIDER_MIN_M,
@@ -38,6 +42,7 @@ class State:
         self.datasets: dict[str, Dataset] = {}
         self.unavailable: dict[str, str] = {}
         self.planners: dict[str, Planner] = {}
+        self.nearby = NearbyAreas()
         syn = load_synthetic()
         self.datasets["synthetic_demo"] = syn
         self.planners["synthetic_demo"] = Planner(syn)
@@ -83,12 +88,31 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
                 if ds.network_geojson is not None:
                     c["network_geojson"] = ds.network_geojson
                 modes[m] = c
+        modes["nearby"] = {"mode": "nearby", "available": True, "area_name": "Your walking area", "basemap_default": True}
         return {
             "slider": {"min_m": SLIDER_MIN_M, "max_m": SLIDER_MAX_M, "step_m": SLIDER_STEP_M, "default_m": SLIDER_DEFAULT_M},
             "modes": modes,
-            "default_mode": "live_pilot" if "live_pilot" in state.datasets else "synthetic_demo",
+            "default_mode": "nearby",
             "limitation_note": LIMITATION_NOTE,
         }
+
+    @app.post("/api/areas")
+    def prepare_area(req: AreaRequest):
+        try:
+            return state.nearby.prepare(req.origin, req.destination)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.get("/api/areas/{dataset_id}")
+    def area_status(dataset_id: str):
+        return state.nearby.status(dataset_id)
+
+    @app.get("/api/search")
+    def world_search(q: str = Query(..., min_length=3, max_length=200)):
+        try:
+            return {"status": "ok", "places": search_world(q)}
+        except Exception:
+            return JSONResponse(status_code=503, content={"detail": "Place search is unavailable. Try again or choose a point on the map."})
 
     @app.get("/api/seats")
     def seats(
@@ -129,12 +153,12 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
     @app.post("/api/route", response_model=RouteResponse)
     def route(req: RouteRequest):
         rid = req.client_request_id or uuid.uuid4().hex
-        planner = state.planners.get(req.dataset_mode)
+        planner = state.nearby.get_planner(req.dataset_id) if req.dataset_mode == "nearby" else state.planners.get(req.dataset_mode)
         if planner is None:
             return RouteResponse(
                 request_id=rid,
                 status="data_unavailable",
-                message=state.unavailable.get(req.dataset_mode, "Dataset not available."),
+                message=state.unavailable.get(req.dataset_mode, "Load the walking area first by choosing Find route."),
                 dataset_version=None,
                 data_mode=req.dataset_mode,
                 requested_max_gap_m=req.max_gap_m,

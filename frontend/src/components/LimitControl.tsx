@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState } from "react";
 
 interface Props {
   value: number;
@@ -27,7 +27,7 @@ export function LimitControl({ value, min, max, step, onChange }: Props) {
 
   return (
     <fieldset className="limit">
-      <legend>Maximum distance between rests</legend>
+      <legend>A place to rest every…</legend>
       <div className="limit-row">
         <input
           id={`${id}-range`}
@@ -52,14 +52,19 @@ export function LimitControl({ value, min, max, step, onChange }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={(e) => commit(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+              if (e.key === "Enter")
+                commit((e.target as HTMLInputElement).value);
             }}
           />
           <span>m</span>
         </label>
       </div>
+      <div className="limit-scale" aria-hidden="true">
+        <span>More frequent rests</span>
+        <span>Longer stretches</span>
+      </div>
       <p className="muted small">
-        A rest at a recorded seat resets the count. This is a planning preference, not a medical estimate.
+        We’ll look for a seat at least every {value} meters.
       </p>
     </fieldset>
   );

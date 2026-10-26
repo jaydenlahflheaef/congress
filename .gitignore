@@ -11,3 +11,5 @@ data/pilot.tmp/
 backend/.venv/
 data/pilot/raw/
 .vercel/
+
+data/areas/

@@ -31,6 +31,6 @@ export const STATUS_HEADINGS: Record<string, string> = {
   disconnected: 'No connected walking route',
   unsupported_area: 'Outside the covered area',
   endpoint_unresolved: 'Could not place that point on a walkway',
-  data_unavailable: 'Pilot data not available',
+  data_unavailable: 'Walking data unavailable',
   error: 'Something went wrong',
 };
