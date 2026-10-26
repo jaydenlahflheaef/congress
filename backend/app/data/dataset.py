@@ -233,7 +233,7 @@ def load_live(pilot_dir: Path = DEFAULT_PILOT_DIR) -> Dataset:
         db_path = (pilot_dir / art["database"]).resolve()
         if not db_path.exists():
             raise OSError(f"missing {art['database']}")
-        # Read-only and immutable: works on read-only hosts such as Vercel.
+        # Read-only and immutable: works on read-only file systems.
         db = sqlite3.connect(f"file:{db_path}?mode=ro&immutable=1", uri=True)
         db.row_factory = sqlite3.Row
     except (OSError, KeyError, ValueError) as e:

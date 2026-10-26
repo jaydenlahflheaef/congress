@@ -14,15 +14,10 @@ import type {
   ModeConfig,
   NamedPoint,
   Seat,
+  Trip,
 } from "./types";
 
 const PREF_KEY = "restroute.maxGap";
-const WORLD_CONFIG: ModeConfig = {
-  mode: "nearby",
-  available: true,
-  area_name: "Your walking area",
-  basemap_default: true,
-};
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -85,7 +80,7 @@ export default function App() {
   const modeCfg =
     mode === "synthetic_demo"
       ? config?.modes.synthetic_demo
-      : (areaConfig ?? WORLD_CONFIG);
+      : (areaConfig ?? config?.modes.nearby);
   useEffect(() => {
     if (mode !== "synthetic_demo" || !modeCfg?.routing_polygon) return;
     const ring = modeCfg.routing_polygon;
@@ -247,8 +242,8 @@ export default function App() {
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
-  const findRoute = async () => {
-    if (!origin || !destination) return;
+  const findRoute = async (from = origin, to = destination) => {
+    if (!from || !to) return;
     if (mode !== "nearby") {
       setEnabled(true);
       planner.refresh();
@@ -264,14 +259,14 @@ export default function App() {
     setAreaError("");
     setAreaMessage("Getting your walking area ready…");
     try {
-      let area = await prepareArea(origin, destination, ctrl.signal);
+      let area = await prepareArea(from, to, ctrl.signal);
       const deadline = Date.now() + 240000;
       while (area.status === "loading") {
         if (ctrl.signal.aborted || ticket !== areaRevision.current) return;
         setAreaMessage(area.message);
         if (Date.now() > deadline)
           throw new Error(
-            "This area is taking longer than expected. Please try again shortly.",
+            "This area is still loading. Press Find my walk again in a minute; loading continues in the background.",
           );
         await new Promise<void>((resolve, reject) => {
           const abort = () => {
@@ -303,6 +298,14 @@ export default function App() {
       if (ticket === areaRevision.current) setLoadingArea(false);
     }
   };
+  const tryExample = (trip: Trip) => {
+    invalidate();
+    setOriginRaw(trip.from);
+    setDestinationRaw(trip.to);
+    if (trip.suggested_limits_m.length) setMaxGap(trip.suggested_limits_m[0]);
+    void findRoute(trip.from, trip.to);
+  };
+  const examples = mode === "nearby" ? (config?.modes.nearby?.trips ?? []) : [];
   const seatsById = useMemo(
     () => Object.fromEntries(seats.map((s) => [s.id, s])),
     [seats],
@@ -496,7 +499,7 @@ export default function App() {
               )}
               <p className="search-hint">
                 {mode === "nearby"
-                  ? "Include a city in your search, then press Enter or ⌕."
+                  ? "Search for a place or address in New York City, then press Enter or ⌕."
                   : "Choose an example above or place both pins on a path."}
               </p>
               <LimitControl
@@ -525,7 +528,7 @@ export default function App() {
                 <div className="loading-area" role="status">
                   <strong>{areaMessage}</strong>
                   <p>
-                    New areas can take a minute or two. Changes to your rest
+                    New areas usually take a few seconds. Changes to your rest
                     distance will be quicker.
                   </p>
                   <button className="text-button" onClick={invalidate}>
@@ -544,6 +547,20 @@ export default function App() {
                     ? "Choose both places to get started."
                     : "Ready when you are."}
                 </p>
+              )}
+              {!loadingArea && !hasResult && examples.length > 0 && (
+                <div className="examples" data-testid="examples">
+                  <p className="examples-title">Or try an example walk:</p>
+                  {examples.map((t) => (
+                    <button
+                      key={t.id}
+                      className="btn small example"
+                      onClick={() => tryExample(t)}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
               )}
             </section>
             {hasResult && (
@@ -620,8 +637,8 @@ export default function App() {
             </details>
             <footer className="planner-footer">
               <p>
-                For neighborhood walks up to 3 km apart. Bench coverage varies
-                by location.
+                For walks in New York City, up to 3 km (about 1.9 miles) apart.
+                Bench coverage varies by neighborhood.
               </p>
               <a
                 href="https://www.openstreetmap.org/copyright"

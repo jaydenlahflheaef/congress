@@ -20,6 +20,7 @@ Sources
 from __future__ import annotations
 
 import math
+import re
 
 from ..routing.graph import PedGraph, Segment, polyline_length
 from .seats import SeatRecord
@@ -36,8 +37,39 @@ WALK_FILTER = (
     '["highway"!~"abandoned|bus_guideway|construction|cycleway|motor|no|planned|platform|proposed|raceway|razed|steps"]'
     '["foot"!~"no|private"]["service"!~"private"]'
 )
+# The same rules as Python regex searches, for ways read from an OSM extract
+# file, plus the access rule used for NYC areas. Like Overpass "!~", a
+# missing tag never excludes a way. NYC areas also leave out indoor and
+# underground walkways: station mezzanines and building interiors usually
+# reach the street only by stairs or escalators, and would otherwise strand
+# a searched building's center on an unconnected island.
+WALK_EXCLUDE = {
+    "area": re.compile("yes"),
+    "access": re.compile("private|no|customers|permit"),
+    "highway": re.compile("abandoned|bus_guideway|construction|cycleway|motor|no|planned|platform|proposed|raceway|razed|steps"),
+    "foot": re.compile("no|private"),
+    "service": re.compile("private"),
+    "indoor": re.compile("^(?!no$)"),
+    "level": re.compile("-"),
+}
 
 TRUE_VALUES = {"yes", "true", "1"}
+
+
+def is_walkable_way(tags: dict) -> bool:
+    if not tags.get("highway"):
+        return False
+    return not any(rx.search(tags[k]) for k, rx in WALK_EXCLUDE.items() if tags.get(k))
+
+
+def foot_directions(tags: dict) -> tuple[bool, bool]:
+    """(forward, backward) along the way's drawing order; only oneway:foot limits walking."""
+    ow = (tags.get("oneway:foot") or "").lower()
+    if ow in TRUE_VALUES:
+        return True, False
+    if ow == "-1":
+        return False, True
+    return True, True
 
 
 def _tag(v):

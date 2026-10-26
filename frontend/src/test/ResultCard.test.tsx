@@ -27,6 +27,27 @@ function renderCard(result: RouteResponse | null, extra: Partial<Parameters<type
 }
 
 describe('ResultCard', () => {
+  it('links each stretch to Google Maps walking directions, except hypothetical benches', () => {
+    const r = okRoute(150, ['s1']);
+    r.legs[1] = { ...r.legs[1], to_id: '@hyp1', to_label: 'Hypothetical bench 1' };
+    r.route_geojson = {
+      type: 'FeatureCollection',
+      features: r.legs.map((l, i) => ({
+        type: 'Feature',
+        properties: { index: l.index },
+        geometry: { type: 'LineString', coordinates: [[-73.83, 40.75 + i / 1000], [-73.8301, 40.751 + i / 1000]] },
+      })),
+    };
+    renderCard(r);
+    const links = screen.getAllByRole('link', { name: /in Google Maps$/ });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName('Walking directions to Seat 1 in Google Maps');
+    expect(links[0]).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/dir/?api=1&destination=40.751000,-73.830100&travelmode=walking',
+    );
+  });
+
   it('shows a feasible result with metrics and itinerary', () => {
     renderCard(okRoute(150));
     expect(screen.getByTestId('status-heading')).toHaveTextContent('Within your selected limit');

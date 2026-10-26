@@ -99,6 +99,23 @@ describe("App", () => {
     expect(areaCalls).toBe(0);
   });
 
+  it("example walks load their area and route with the suggested limit", async () => {
+    render(<App />);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Flushing–Main St station to Queens Public Library at Flushing",
+      }),
+    );
+    await waitFor(() => expect(routeBodies.length).toBe(1));
+    expect(areaCalls).toBe(1);
+    expect(routeBodies[0]).toMatchObject({
+      max_gap_m: 400,
+      dataset_mode: "nearby",
+      dataset_id: "boston-area",
+    });
+    expect(screen.queryByTestId("examples")).toBeNull();
+  });
+
   it("keeps the fictional example behind How it works", async () => {
     render(<App />);
     await userEvent.click(

@@ -1,9 +1,20 @@
 [
   {
     "id": "main-st-to-library",
-    "name": "Flushing-Main St station to Queens Public Library at Flushing",
+    "name": "Flushing–Main St station to Queens Public Library at Flushing",
     "from_place": ["Flushing–Main Street", "Flushing-Main Street", "Flushing - Main Street"],
     "to_place": ["Queens Public Library", "Flushing Library"],
+    "from": {"name": "Flushing–Main St station (7 train)", "lat": 40.7596762, "lon": -73.8295952},
+    "to": {"name": "Queens Public Library at Flushing", "lat": 40.7578275, "lon": -73.8288632},
     "suggested_limits_m": [400, 150, 100]
+  },
+  {
+    "id": "town-hall-to-library",
+    "name": "Flushing Town Hall to Queens Public Library at Flushing",
+    "from_place": ["Flushing Town Hall"],
+    "to_place": ["Queens Public Library", "Flushing Library"],
+    "from": {"name": "Flushing Town Hall", "lat": 40.763914, "lon": -73.830071},
+    "to": {"name": "Queens Public Library at Flushing", "lat": 40.7578275, "lon": -73.8288632},
+    "suggested_limits_m": [300, 150, 100]
   }
 ]

@@ -10,6 +10,6 @@ data/pilot.tmp/
 .venv/
 backend/.venv/
 data/pilot/raw/
-.vercel/
 
 data/areas/
+data/nyc/raw/

@@ -1,0 +1,16 @@
+{
+  "version": "osm-2026-10-24-7369fc63",
+  "extract_date": "2026-10-24T00:00:00Z",
+  "source": "BBBike.org New York extract of OpenStreetMap (https://download.bbbike.org/osm/bbbike/NewYork/NewYork.osm.pbf), dated 2026-10-24",
+  "license": "ODbL 1.0",
+  "tile_deg": [
+    0.02,
+    0.015
+  ],
+  "counts": {
+    "walkable_ways": 395248,
+    "segments": 925273,
+    "seating_features": 32259,
+    "tiles": 447
+  }
+}

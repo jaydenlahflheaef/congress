@@ -12,6 +12,7 @@ never logged.
 from __future__ import annotations
 
 import logging
+import mimetypes
 import os
 import uuid
 from pathlib import Path
@@ -21,8 +22,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data.dataset import DEFAULT_PILOT_DIR, REPO_ROOT, DataUnavailable, Dataset, load_live, load_synthetic
-from .data.nearby import NearbyAreas
-from .data.geocoder import search_world
+from .data.nearby import NOT_LOADED, NearbyAreas, load_seeds
+from .data.nyc import nyc_region
+from .data.geocoder import search_places
 from .models.schemas import (
     AreaRequest,
     SLIDER_DEFAULT_M,
@@ -35,6 +37,8 @@ from .models.schemas import (
 from .routing.planner import LIMITATION_NOTE, Planner
 
 log = logging.getLogger("rest_route")
+# The Home Screen app manifest; Python does not know this extension on every system.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
 class State:
@@ -42,7 +46,7 @@ class State:
         self.datasets: dict[str, Dataset] = {}
         self.unavailable: dict[str, str] = {}
         self.planners: dict[str, Planner] = {}
-        self.nearby = NearbyAreas()
+        self.nearby = NearbyAreas(region=nyc_region(), fixed=load_seeds())
         syn = load_synthetic()
         self.datasets["synthetic_demo"] = syn
         self.planners["synthetic_demo"] = Planner(syn)
@@ -88,7 +92,15 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
                 if ds.network_geojson is not None:
                     c["network_geojson"] = ds.network_geojson
                 modes[m] = c
-        modes["nearby"] = {"mode": "nearby", "available": True, "area_name": "Your walking area", "basemap_default": True}
+        modes["nearby"] = {
+            "mode": "nearby",
+            "available": True,
+            "area_name": nyc_region().name,
+            "basemap_default": True,
+            "region_bounds": list(nyc_region().bbox),
+            # Example walks inside the prepared areas, which open instantly.
+            "trips": [t for p in state.nearby.fixed.values() for t in p.ds.trips],
+        }
         return {
             "slider": {"min_m": SLIDER_MIN_M, "max_m": SLIDER_MAX_M, "step_m": SLIDER_STEP_M, "default_m": SLIDER_DEFAULT_M},
             "modes": modes,
@@ -108,9 +120,9 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
         return state.nearby.status(dataset_id)
 
     @app.get("/api/search")
-    def world_search(q: str = Query(..., min_length=3, max_length=200)):
+    def place_search(q: str = Query(..., min_length=3, max_length=200)):
         try:
-            return {"status": "ok", "places": search_world(q)}
+            return {"status": "ok", "places": search_places(q)}
         except Exception:
             return JSONResponse(status_code=503, content={"detail": "Place search is unavailable. Try again or choose a point on the map."})
 
@@ -158,7 +170,7 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
             return RouteResponse(
                 request_id=rid,
                 status="data_unavailable",
-                message=state.unavailable.get(req.dataset_mode, "Load the walking area first by choosing Find route."),
+                message=state.unavailable.get(req.dataset_mode, NOT_LOADED),
                 dataset_version=None,
                 data_mode=req.dataset_mode,
                 requested_max_gap_m=req.max_gap_m,

@@ -11,6 +11,7 @@ pyproj==3.8.0
 pandas==3.0.5
 numpy==2.5.3
 requests==2.34.2
+osmium==4.3.2
 # tests
 pytest==9.1.1
 httpx==0.28.1

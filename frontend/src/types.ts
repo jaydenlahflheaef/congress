@@ -146,6 +146,8 @@ export interface ModeConfig {
   routing_polygon?: [number, number][];
   basemap_default?: boolean;
   trips?: Trip[];
+  /** [minLon, minLat, maxLon, maxLat] of the area trips must stay inside. */
+  region_bounds?: [number, number, number, number];
   counts?: Record<string, number>;
   retrieved?: Record<string, string>;
   sources?: { name: string; url: string | null; license?: string }[];
@@ -164,6 +166,8 @@ export interface Place extends LatLon {
   name: string;
   category: string | null;
   source: string;
+  /** Set when the search result was moved from a building's center to the nearest walkway. */
+  moved_to_walkway_m?: number;
 }
 
 export interface AreaResponse {

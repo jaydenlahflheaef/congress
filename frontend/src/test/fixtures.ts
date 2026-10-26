@@ -5,7 +5,22 @@ export const config: AppConfig = {
   default_mode: "nearby",
   limitation_note: "Seat records can be incomplete or outdated.",
   modes: {
-    nearby: { mode: "nearby", available: true, basemap_default: true },
+    nearby: {
+      mode: "nearby",
+      available: true,
+      basemap_default: true,
+      area_name: "New York City",
+      region_bounds: [-74.26, 40.47, -73.7, 40.92],
+      trips: [
+        {
+          id: "main-st-to-library",
+          name: "Flushing–Main St station to Queens Public Library at Flushing",
+          from: { name: "Flushing–Main St station (7 train)", lat: 40.7597, lon: -73.8296 },
+          to: { name: "Queens Public Library at Flushing", lat: 40.7578, lon: -73.8289 },
+          suggested_limits_m: [400, 150, 100],
+        },
+      ],
+    },
     live_pilot: {
       mode: "live_pilot",
       available: false,

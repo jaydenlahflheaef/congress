@@ -117,6 +117,17 @@ export default function RouteMap(props: Props) {
   const [tileError, setTileError] = useState(false);
   const service = config.service_polygon ?? [];
   const serviceBounds = useMemo(() => boundsOf(service), [service]);
+  const region = config.region_bounds;
+  const regionBounds = useMemo(
+    () =>
+      region
+        ? boundsOf([
+            [region[0], region[1]],
+            [region[2], region[3]],
+          ])
+        : null,
+    [region],
+  );
   const hasRoute =
     !!result && (result.status === "ok" || result.status === "limit_unmet");
   const legs = hasRoute ? (result!.route_geojson?.features ?? []) : [];
@@ -162,10 +173,10 @@ export default function RouteMap(props: Props) {
       <MapContainer
         key={config.mode}
         className={`map ${props.armed ? "armed" : ""}`}
-        bounds={serviceBounds ?? undefined}
-        center={[25, 10]}
-        zoom={2}
-        minZoom={2}
+        bounds={serviceBounds ?? regionBounds ?? undefined}
+        center={[40.71, -73.94]}
+        zoom={10}
+        minZoom={9}
         zoomControl
         scrollWheelZoom
         attributionControl

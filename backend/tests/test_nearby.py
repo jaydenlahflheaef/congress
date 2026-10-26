@@ -1,4 +1,4 @@
-"""Area lifecycle, real OSM adapter boundaries, and worldwide search tests.
+"""Area lifecycle, NYC tile loading, prepared areas and NYC search tests.
 
 All network inputs here are simulated; live smoke checks are documented separately.
 """
@@ -11,10 +11,10 @@ import pytest
 from fastapi.testclient import TestClient
 from shapely.geometry import Polygon
 
-from app.data import geocoder, nearby
+from app.data import geocoder, nearby, nyc
 from app.data.build import graph_fingerprint, graph_from_json, graph_to_json
 from app.data.dataset import load_synthetic
-from app.data.nearby import NearbyAreas, area_for, dataset_from_payload, download_area
+from app.data.nearby import NOT_LOADED, NearbyAreas, area_for, build_area, dataset_from_payload
 from app.main import create_app
 from app.models.schemas import LatLon
 
@@ -120,47 +120,9 @@ def test_api_requires_area_and_returns_clear_failures(tmp_path, monkeypatch):
         assert c.post('/api/areas',json={**req,'destination':{'lat':43,'lon':-71}}).status_code == 422
         assert c.post('/api/areas',json={'origin':{'lat':100,'lon':0},'destination':req['destination']}).status_code == 422
         assert c.get('/api/areas/unknown').json()['status'] == 'error'
-        monkeypatch.setattr('app.main.search_world',Mock(side_effect=RuntimeError('upstream failed')))
+        monkeypatch.setattr('app.main.search_places',Mock(side_effect=RuntimeError('upstream failed')))
         assert c.get('/api/search?q=Boston').status_code == 503
         assert c.get('/api/search?q=a').status_code == 422
-
-
-def test_geocoder_normalizes_and_caches(monkeypatch):
-    geocoder._cache.clear()
-    geocoder._last_request = 0
-    response = Mock()
-    response.json.return_value = {'features':[{'geometry':{'coordinates':[-71,42]},'properties':{
-        'osm_type':'N','osm_id':123,'name':'Library','city':'Boston','country':'United States'}}]}
-    request = Mock(return_value=response)
-    monkeypatch.setattr(geocoder.requests,'get',request)
-    assert geocoder.search_world('Library Boston')[0]['name'] == 'Library, Boston, United States'
-    assert geocoder.search_world(' library boston ')[0]['lon'] == -71
-    assert request.call_count == 1
-    assert geocoder.search_world('x') == []
-
-
-def test_loader_projects_southern_hemisphere_and_preserves_osm_seats(monkeypatch):
-    import networkx as nx
-    import geopandas as gpd
-    import osmnx as ox
-    from shapely.geometry import Point
-    G = nx.MultiDiGraph(crs='EPSG:4326')
-    G.add_node(1,x=151.2,y=-33.87)
-    G.add_node(2,x=151.201,y=-33.87)
-    for a,b in [(1,2),(2,1)]:
-        G.add_edge(a,b,key=0,osmid=44,highway='footway',length=100)
-    feats = gpd.GeoDataFrame({'amenity':['bench'],'access':['yes'],'geometry':[Point(151.2,-33.87)]},
-                            index=__import__('pandas').MultiIndex.from_tuples([('node',1)]),crs='EPSG:4326')
-    monkeypatch.setattr(ox,'graph_from_polygon',lambda *a,**k:G)
-    monkeypatch.setattr(ox,'features_from_polygon',lambda *a,**k:feats)
-    progress = []
-    p = download_area(Polygon([(151.199,-33.871),(151.202,-33.871),(151.202,-33.869),(151.199,-33.869)]),progress.append)
-    ds = dataset_from_payload(p)
-    assert ds.mode == 'nearby' and len(ds.seat_node) == 1
-    assert ds.seats['osm-node-1'].source_refs[0]['source'] == 'osm'
-    paths = [s.length_m for s in ds.graph.segments.values() if s.kind=='path']
-    assert 90 < sum(paths) < 100
-    assert len(progress) == 3
 
 
 def test_expired_memory_area_is_reloaded(tmp_path):
@@ -176,3 +138,120 @@ def test_expired_memory_area_is_reloaded(tmp_path):
         assert wait_ready(m,key)['status'] == 'ready'
     finally:
         m.worker.shutdown()
+
+
+@pytest.fixture
+def nyc_tiles(tmp_path, monkeypatch):
+    """A synthetic Midtown tile: an 8 x 8 walkway grid, a 2-node scrap, one bench and one DOT seat."""
+    osm = tmp_path / 'osm'
+    osm.mkdir()
+    lon0, lat0, step = -73.996, 40.745, .0005
+    nid = lambda i, j: 1000 + i * 8 + j
+    segments = []
+    for i in range(8):
+        for j in range(8):
+            for di, dj in ((1, 0), (0, 1)):
+                if i + di < 8 and j + dj < 8:
+                    a, b = nid(i, j), nid(i + di, j + dj)
+                    flat = [round(v * 1e6) for v in (lon0 + j * step, lat0 + i * step, lon0 + (j + dj) * step, lat0 + (i + di) * step)]
+                    segments.append([f'e:w{a}{b}.0', a, b, a, 3, {'highway': 'footway'}, flat])
+    scrap = [round(v * 1e6) for v in (lon0 + .0002, lat0 + .0041, lon0 + .0004, lat0 + .0041)]
+    segments.append(['e:w9.0', 9001, 9002, 9, 3, {'highway': 'footway'}, scrap])
+    seats = [['node', 77, lon0 + .0010, lat0 + .00002, 'Point', {'amenity': 'bench', 'backrest': 'yes'}]]
+    tile = nyc.tile_of(lon0, lat0)
+    (osm / f'{tile[0]}_{tile[1]}.json.gz').write_bytes(__import__('gzip').compress(__import__('json').dumps({'segments': segments, 'seats': seats}).encode()))
+    (osm / 'meta.json').write_text('{"version": "osm-test", "extract_date": "2026-10-24T00:00:00Z", "source": "test tiles"}')
+    dot = {'retrieved': '2026-10-26T00:00:00Z', 'source_updated': '2026-10-13T00:00:00Z', 'rows': [
+        {'siteid': 'SEAT.1', 'asset_subtype': 'BACKED 2.0', 'latitude': str(lat0 + .00198), 'longitude': str(lon0 + .0020), 'nearest_add': '1 Test Pl'},
+        {'siteid': 'SEAT.2', 'asset_subtype': 'BACKED 2.0', 'latitude': '40.80', 'longitude': '-73.90'}]}
+    monkeypatch.setattr(nyc, 'OSM_DIR', osm)
+    monkeypatch.setattr(nyc, 'dot_snapshot', lambda: dot)
+    nyc.osm_meta.cache_clear()
+    yield Polygon([(lon0, lat0), (lon0 + .0035, lat0), (lon0 + .0035, lat0 + .0035), (lon0, lat0 + .0035)])
+    nyc.osm_meta.cache_clear()
+
+
+def test_area_is_built_from_tiles_with_osm_and_dot_seats(nyc_tiles):
+    progress = []
+    ds = dataset_from_payload(build_area(nyc_tiles, progress.append))
+    assert ds.mode == 'nearby' and len(progress) == 3
+    assert sorted(ds.seat_node) == ['dot-SEAT.1', 'osm-node-77']
+    assert ds.seats['osm-node-77'].backrest is True
+    assert ds.seats['dot-SEAT.1'].source_refs[0]['source'] == 'nyc_dot_seating'
+    paths = [s for s in ds.graph.segments.values() if s.kind == 'path']
+    assert not any(s.tags['osmid'] == '9' for s in paths), 'isolated scraps are dropped'
+    # 112 grid edges of about 42 m (east-west) and 56 m (north-south), split where seats attach
+    assert 5300 < sum(s.length_m for s in paths) < 5500
+    assert ds.manifest['retrieved'] == {'osm': '2026-10-24T00:00:00Z', 'nyc_dot_seating': '2026-10-26T00:00:00Z'}
+    assert ds.manifest['counts']['nyc_dot_seat_records'] == 1
+
+
+def test_area_without_walkways_is_reported_not_faked(nyc_tiles):
+    with pytest.raises(nearby.DataUnavailable, match='No mapped walking paths'):
+        build_area(Polygon([(-73.80, 40.60), (-73.799, 40.60), (-73.799, 40.601), (-73.80, 40.601)]), lambda m: None)
+
+
+def test_walkway_filter_matches_overpass_rules_and_skips_indoor():
+    from app.data.sources import foot_directions, is_walkable_way
+    assert is_walkable_way({'highway': 'footway', 'footway': 'sidewalk'})
+    assert is_walkable_way({'highway': 'footway', 'indoor': 'no'})
+    for tags in ({'highway': 'steps'}, {'highway': 'motorway'}, {'highway': 'footway', 'access': 'private'},
+                 {'highway': 'footway', 'foot': 'no'}, {'highway': 'pedestrian', 'area': 'yes'},
+                 {'highway': 'footway', 'indoor': 'yes'}, {'highway': 'footway', 'level': '-1'}, {'building': 'yes'}):
+        assert not is_walkable_way(tags), tags
+    assert foot_directions({'oneway:foot': 'yes'}) == (True, False)
+    assert foot_directions({'oneway:foot': '-1'}) == (False, True)
+    assert foot_directions({'oneway': 'yes'}) == (True, True)
+
+
+def test_evicted_area_reloads_from_disk_and_bad_ids_are_ignored(tmp_path):
+    m = NearbyAreas(tmp_path, Mock(return_value=payload()))
+    points = [LatLon(lat=40.70 + i * .01, lon=-73.95) for i in range(5)]
+    try:
+        keys = [wait_ready(m, m.prepare(p, p)['dataset_id'])['dataset_id'] for p in points]
+        assert keys[0] not in m.planners, 'only four areas stay in memory'
+        assert m.get_planner(keys[0]) is not None
+        assert m.status(keys[0])['status'] == 'ready'
+        assert m.get_planner('../../etc/passwd') is None and m.get_planner(None) is None
+        assert m.status('nope') == {'status': 'error', 'message': NOT_LOADED}
+    finally:
+        m.worker.shutdown()
+
+
+def test_app_is_nyc_only_and_flushing_opens_instantly(tmp_path, monkeypatch):
+    with TestClient(create_app(tmp_path, serve_frontend=False)) as c:
+        cfg = c.get('/api/config').json()['modes']['nearby']
+        assert cfg['area_name'] == 'New York City' and len(cfg['region_bounds']) == 4
+        trip = cfg['trips'][0]
+        area = c.post('/api/areas', json={'origin': trip['from'], 'destination': trip['to']}).json()
+        assert area['status'] == 'ready' and area['dataset_id'] == 'flushing'
+        assert area['config']['area_name'] == 'Downtown Flushing'
+        sources = {s['source_refs'][0]['source'] for s in area['seats']}
+        assert sources == {'osm', 'nyc_dot_seating'}
+        r = c.post('/api/route', json={'origin': trip['from'], 'destination': trip['to'], 'max_gap_m': 400,
+                                       'dataset_mode': 'nearby', 'dataset_id': 'flushing'}).json()
+        assert r['status'] == 'ok' and r['legs']
+        hoboken = c.post('/api/areas', json={'origin': {'lat': 40.744, 'lon': -74.0324}, 'destination': {'lat': 40.745, 'lon': -74.031}})
+        assert hoboken.status_code == 422 and 'New York City' in hoboken.json()['detail']
+
+
+def test_search_is_limited_to_nyc_and_moves_building_centers_to_walkways(monkeypatch):
+    geocoder._cache.clear()
+    geocoder._last_request = 0
+    response = Mock()
+    response.json.return_value = {'features': [
+        {'geometry': {'coordinates': [-73.8289, 40.7578]}, 'properties': {
+            'osm_type': 'W', 'osm_id': 1, 'name': 'Library', 'housenumber': '41-17', 'street': 'Main Street',
+            'city': 'Flushing', 'district': 'Queens', 'state': 'NY', 'country': 'United States'}},
+        {'geometry': {'coordinates': [-71.06, 42.36]}, 'properties': {'osm_type': 'N', 'osm_id': 2, 'name': 'Boston Library'}},
+    ]}
+    request = Mock(return_value=response)
+    monkeypatch.setattr(geocoder.requests, 'get', request)
+    monkeypatch.setattr(geocoder, 'nearest_walkway', lambda lat, lon, max_m: (lat + .0005, lon, 55.0))
+    places = geocoder.search_places('Library Flushing')
+    assert [p['name'] for p in places] == ['Library, 41-17 Main Street, Flushing, Queens']
+    assert places[0]['lat'] == 40.7583 and places[0]['moved_to_walkway_m'] == 55
+    assert request.call_args.kwargs['params']['bbox'].startswith('-74.2')
+    assert geocoder.search_places(' library flushing ')[0]['lon'] == -73.8289
+    assert request.call_count == 1
+    assert geocoder.search_places('x') == []

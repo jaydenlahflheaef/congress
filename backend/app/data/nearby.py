@@ -1,7 +1,9 @@
-"""Load a small real walking area around a trip, outside the route request.
+"""Build a small real walking area around a trip, outside the route request.
 
-One worker bounds downloads/OSMnx settings changes. Area artifacts are reused
-across slider changes and server restarts. No endpoint names are persisted.
+Areas are cut from the committed NYC OpenStreetMap tiles and NYC DOT snapshot
+(see nyc.py), so building one needs no network. One worker builds areas; they
+are reused across slider changes and server restarts. Prepared areas (the
+Flushing seed) answer instantly. No endpoint names are persisted.
 """
 from __future__ import annotations
 
@@ -10,6 +12,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -18,19 +21,22 @@ from dataclasses import asdict
 from pathlib import Path
 
 from pyproj import Geod, Transformer
-from shapely.geometry import Polygon, box
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import transform
+from shapely.prepared import prep
 
 from .build import attach_seats, graph_fingerprint, graph_from_json, graph_to_json, now_iso, seat_distance_matrix
 from .dataset import Dataset, DataUnavailable, REPO_ROOT
+from .nyc import SEEDS_DIR, dot_seats_within, osm_area, osm_meta
 from .seats import SeatRecord, rules_hash
-from .sources import WALK_FILTER, osm_feature_to_seat, osmnx_to_pedgraph
 
 MAX_TRIP_M = 3000
 MAX_SEATS = 600
 MAX_NODES = 20000
 CACHE_TTL = 7 * 86400
-CACHE_VERSION = 'nearby-v1'
+CACHE_VERSION = 'nearby-v3'
+KEY_PATTERN = re.compile(r'[0-9a-f]{24}')
+NOT_LOADED = 'This walking area is no longer loaded. Press Find my walk again.'
 USER_AGENT = 'RestRoute/0.2 (walking and recorded seating research project)'
 
 
@@ -48,7 +54,8 @@ def area_for(origin, destination):
                math.ceil(max(a[1], b[1]) / step) * step + step)
     if ring.bounds[0] <= -180 or ring.bounds[2] >= 180:
         raise ValueError('Trips at the date line are not supported yet.')
-    key = hashlib.sha256(f'{CACHE_VERSION}:{rules_hash()}:{ring.wkt}'.encode()).hexdigest()[:24]
+    # The tile version is part of the key, so refreshed map data never reuses old areas.
+    key = hashlib.sha256(f'{CACHE_VERSION}:{rules_hash()}:{osm_meta().get("version")}:{ring.wkt}'.encode()).hexdigest()[:24]
     return key, ring
 
 
@@ -59,56 +66,34 @@ def dataset_from_payload(payload):
     proj = Transformer.from_crs('EPSG:4326', graph.crs, always_xy=True).transform
     to_ll = Transformer.from_crs(graph.crs, 'EPSG:4326', always_xy=True).transform
     return Dataset(
-        mode='nearby', version=payload['version'], area_name='Your walking area', graph=graph,
+        mode='nearby', version=payload['version'], area_name=payload.get('area_name', 'Your walking area'), graph=graph,
         seats={s['id']: SeatRecord(**s) for s in payload['seats']}, seat_node=payload['seat_node'],
-        matrix=payload['matrix'], places=[], trips=[],
+        matrix=payload['matrix'], places=[], trips=payload.get('trips', []),
         service_polygon_xy=transform(proj, Polygon(payload['service'])),
         service_polygon_lonlat=payload['service'], routing_polygon_lonlat=payload['routing'],
         manifest=payload['manifest'], rules_hash=rules_hash(), basemap_default=True, to_lonlat=to_ll,
     )
 
 
-def download_area(service, progress):
-    import osmnx as ox
-
+def build_area(service, progress):
     center = service.centroid
     crs = f'+proj=aeqd +lat_0={center.y} +lon_0={center.x} +datum=WGS84 +units=m +no_defs'
     proj = Transformer.from_crs('EPSG:4326', crs, always_xy=True).transform
     to_ll = Transformer.from_crs(crs, 'EPSG:4326', always_xy=True).transform
     routing = transform(to_ll, transform(proj, service).buffer(500, join_style='mitre'))
-    if routing.bounds[0] <= -180 or routing.bounds[2] >= 180:
-        raise DataUnavailable('The buffered walking area crosses the date line. Choose a different trip.')
-    ox.settings.http_user_agent = USER_AGENT
-    ox.settings.requests_timeout = 45
-    ox.settings.log_console = False
-    ox.settings.log_file = False
-    # Our final versioned artifact is the cache; avoid an unbounded second cache.
-    ox.settings.use_cache = False
-    ox.settings.overpass_url = os.environ.get('REST_ROUTE_OVERPASS_URL', 'https://overpass-api.de/api')
-    ox.settings.useful_tags_way = list(dict.fromkeys(ox.settings.useful_tags_way + ['foot', 'access', 'oneway:foot', 'footway']))
     progress('Loading walking paths around your trip…')
-    raw = ox.graph_from_polygon(routing, network_type='walk', custom_filter=WALK_FILTER + '["access"!~"no|customers|permit"]',
-                                simplify=True, retain_all=True, truncate_by_edge=True)
-    if len(raw.nodes) > MAX_NODES:
+    graph, seats = osm_area(routing, crs)
+    if not graph.segments:
+        raise DataUnavailable('No mapped walking paths were found here. Try a different start or destination.')
+    if len(graph.nodes) > MAX_NODES:
         raise DataUnavailable('This area has too many walking paths for this version. Try a shorter trip.')
-    graph, warnings = osmnx_to_pedgraph(ox.project_graph(raw, to_crs=crs), crs)
     progress('Looking for recorded benches…')
-    imported = now_iso()
-    try:
-        features = ox.features_from_polygon(routing, tags={'amenity': ['bench', 'shelter'], 'highway': 'bus_stop'})
-    except ox._errors.InsufficientResponseError:
-        features = None
-    seats = []
-    if features is not None:
-        for (element, oid), row in features.iterrows():
-            geom = row.geometry
-            if geom is None or geom.is_empty:
-                continue
-            pt = geom if geom.geom_type == 'Point' else geom.representative_point()
-            s = osm_feature_to_seat(str(element), oid, row.drop(labels=['geometry']).to_dict(), pt.x, pt.y, geom.geom_type, imported)
-            if s:
-                s.x, s.y = proj(s.lon, s.lat)
-                seats.append(s)
+    meta = osm_meta()
+    osm_count = len(seats)
+    dot_seats, dot_source = dot_seats_within(routing, now_iso())
+    for s in dot_seats:
+        s.x, s.y = proj(s.lon, s.lat)
+    seats += dot_seats
     built = attach_seats(graph, seats)
     if len(built.seat_node) > MAX_SEATS:
         raise DataUnavailable('This area contains more than 600 usable seat records. Try a shorter trip; no seats have been silently removed.')
@@ -118,22 +103,44 @@ def download_area(service, progress):
     graph = graph_from_json(gj)
     fingerprint = graph_fingerprint(graph)
     matrix = seat_distance_matrix(graph, built.seat_node)
+    retrieved = {'osm': meta.get('extract_date')}
+    sources = [{'name': 'OpenStreetMap paths and seating', 'url': 'https://www.openstreetmap.org/copyright', 'license': 'ODbL 1.0',
+                'how': meta.get('source')}]
+    if dot_source:
+        retrieved['nyc_dot_seating'] = dot_seats[0].imported_at
+        sources.append(dot_source)
     return {
-        'version': f'osm-{imported[:10]}-{fingerprint[:10]}', 'rules_hash': rules_hash(),
+        'version': f'osm-{(meta.get("extract_date") or "")[:10]}-{fingerprint[:10]}', 'rules_hash': rules_hash(),
         'fingerprint': fingerprint, 'graph': gj, 'matrix': matrix,
         'seats': [asdict(s) for s in built.seats.values()], 'seat_node': built.seat_node,
         'service': list(service.exterior.coords), 'routing': list(routing.exterior.coords),
-        'manifest': {'retrieved': {'osm': imported}, 'counts': {'eligible_seats': len(built.seat_node),
-                     'excluded_seats': len(built.seats) - len(built.seat_node)},
-                     'warnings': warnings + built.warnings,
-                     'sources': [{'name': 'OpenStreetMap paths and seating', 'url': 'https://www.openstreetmap.org/copyright', 'license': 'ODbL 1.0'}]},
+        'manifest': {'retrieved': retrieved,
+                     'counts': {'osm_seat_records': osm_count, 'nyc_dot_seat_records': len(dot_seats),
+                                'eligible_seats': len(built.seat_node), 'excluded_seats': len(built.seats) - len(built.seat_node)},
+                     'warnings': built.warnings, 'merge_notes': built.merge_notes, 'sources': sources},
     }
 
 
+def load_seeds(seeds_dir=SEEDS_DIR):
+    """Prepared areas committed with the code, keyed by their file name."""
+    from ..routing.planner import Planner
+    seeds = {}
+    for path in sorted(Path(seeds_dir).glob('*.json.gz')):
+        try:
+            seeds[path.name.removesuffix('.json.gz')] = Planner(dataset_from_payload(json.loads(gzip.decompress(path.read_bytes()))))
+        except (OSError, ValueError, KeyError, DataUnavailable):
+            continue  # an outdated seed falls back to building the area on demand
+    return seeds
+
+
 class NearbyAreas:
-    def __init__(self, cache_dir=None, loader=download_area):
+    def __init__(self, cache_dir=None, loader=build_area, region=None, fixed=None):
         self.cache_dir = Path(cache_dir or os.environ.get('REST_ROUTE_AREA_CACHE', REPO_ROOT / 'data' / 'areas'))
         self.loader = loader
+        self.region = region
+        # Prepared areas answer instantly when both trip ends fall inside their outline.
+        self.fixed = dict(fixed or {})
+        self._fixed_outlines = {k: prep(Polygon(p.ds.service_polygon_lonlat)) for k, p in self.fixed.items()}
         self.lock = threading.RLock()
         self.worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='rest-route-area')
         self.jobs = OrderedDict()
@@ -141,11 +148,16 @@ class NearbyAreas:
         self.expires = {}
 
     def prepare(self, origin, destination):
+        if self.region and not (self.region.covers(origin.lat, origin.lon) and self.region.covers(destination.lat, destination.lon)):
+            raise ValueError(self.region.outside_message)
         key, polygon = area_for(origin, destination)
+        for name, outline in self._fixed_outlines.items():
+            if outline.covers(Point(origin.lon, origin.lat)) and outline.covers(Point(destination.lon, destination.lat)):
+                return self._ready(name, self.fixed[name])
+        planner = self.get_planner(key)
+        if planner:
+            return self._ready(key, planner)
         with self.lock:
-            if self.get_planner(key):
-                self.planners.move_to_end(key)
-                return self._ready(key)
             if key in self.jobs and self.jobs[key]['status'] == 'loading':
                 return dict(self.jobs[key])
             if sum(j['status'] == 'loading' for j in self.jobs.values()) >= 2:
@@ -160,27 +172,59 @@ class NearbyAreas:
             self.worker.submit(self._build, key, polygon)
             return dict(self.jobs[key])
 
-    def _ready(self, key):
-        ds = self.planners[key].ds
+    def _ready(self, key, planner):
+        ds = planner.ds
         return {'status': 'ready', 'dataset_id': key, 'message': 'Walking area ready.', 'config': ds.public_config(),
                 'seats': [s.to_public() for s in ds.seats.values() if s.routing_eligible]}
 
     def status(self, key):
+        planner = self.get_planner(key)
+        if planner:
+            return self._ready(key, planner)
         with self.lock:
-            if self.get_planner(key):
-                return self._ready(key)
-            return dict(self.jobs.get(key, {'status': 'error', 'message': 'This walking area expired. Find your route again.'}))
+            return dict(self.jobs.get(key, {'status': 'error', 'message': NOT_LOADED}))
 
     def get_planner(self, key):
+        if key in self.fixed:
+            return self.fixed[key]
         with self.lock:
             if key in self.expires and self.expires[key] <= time.time():
                 self.planners.pop(key, None)
                 self.expires.pop(key, None)
                 self.jobs.pop(key, None)
+                (self.cache_dir / f'{key}.json.gz').unlink(missing_ok=True)
+                return None
             planner = self.planners.get(key)
             if planner:
                 self.planners.move_to_end(key)
-            return planner
+                return planner
+        return self._reload(key)
+
+    def _reload(self, key):
+        """Bring back an area that was dropped from memory but is still saved on disk."""
+        from ..routing.planner import Planner
+        if not key or not KEY_PATTERN.fullmatch(key):
+            return None
+        path = self.cache_dir / f'{key}.json.gz'
+        try:
+            if time.time() - path.stat().st_mtime >= CACHE_TTL:
+                return None
+            planner = Planner(dataset_from_payload(json.loads(gzip.decompress(path.read_bytes()))))
+        except (OSError, ValueError, KeyError, DataUnavailable):
+            return None
+        self._remember(key, planner, path)
+        return planner
+
+    def _remember(self, key, planner, path):
+        with self.lock:
+            self.planners[key] = planner
+            self.planners.move_to_end(key)
+            self.expires[key] = (path.stat().st_mtime if path.exists() else time.time()) + CACHE_TTL
+            while len(self.planners) > 4:
+                evicted, _ = self.planners.popitem(last=False)
+                self.expires.pop(evicted, None)
+                self.jobs.pop(evicted, None)
+            self.jobs[key] = {'status': 'ready', 'dataset_id': key}
 
     def _build(self, key, polygon):
         from ..routing.planner import Planner
@@ -212,17 +256,8 @@ class NearbyAreas:
                     ds.manifest.setdefault('warnings', []).append('Area cache could not be saved; it will reload after a restart.')
             else:
                 ds = dataset_from_payload(payload)
-            planner = Planner(ds)
-            with self.lock:
-                self.planners[key] = planner
-                self.expires[key] = (path.stat().st_mtime if path.exists() else time.time()) + CACHE_TTL
-                while len(self.planners) > 4:
-                    evicted, _ = self.planners.popitem(last=False)
-                    self.expires.pop(evicted, None)
-                    self.jobs.pop(evicted, None)
-                self.jobs[key] = {'status': 'ready', 'dataset_id': key}
+            self._remember(key, Planner(ds), path)
         except Exception as exc:
-            # Do not expose URLs containing queried bounds or provider internals.
             message = str(exc) if isinstance(exc, DataUnavailable) else 'We could not load walking paths and benches here. Try again, or choose another location.'
             with self.lock:
                 self.jobs[key] = {'status': 'error', 'dataset_id': key, 'message': message}

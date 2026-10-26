@@ -1,0 +1,10 @@
+# Render Blueprint: one web service built from the Dockerfile.
+# Create it at https://dashboard.render.com/blueprints (see DEPLOY.md).
+services:
+  - type: web
+    name: rest-route
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health

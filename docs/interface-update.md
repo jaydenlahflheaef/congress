@@ -1,3 +1,5 @@
+> Later the same day the planner was limited to New York City and stopped downloading from Overpass; areas are now built from committed data in `data/nyc/`, and hosting moved to Render. See README and DEPLOY.md for current behavior. This note records the earlier update as it was.
+
 # Planner update — 26 October 2026
 
 ## What changed

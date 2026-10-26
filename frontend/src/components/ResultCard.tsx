@@ -16,6 +16,15 @@ interface Props {
   limitationNote: string;
 }
 
+/**
+ * Google Maps walking directions from wherever the viewer is now. Leaving
+ * out the origin is what lets Google Maps start turn-by-turn navigation.
+ * Maps URLs need no API key.
+ */
+export function directionsUrl([lon, lat]: [number, number]): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lon.toFixed(6)}&travelmode=walking`;
+}
+
 function StopDetails({
   stop,
   onExclude,
@@ -96,7 +105,7 @@ export function ResultCard(props: Props) {
       <section className="card result" aria-label="Route result">
         <p className="muted">
           Choose a start and a destination, set how far you want to walk between
-          rests, then press Find route.
+          rests, then press Find my walk.
         </p>
       </section>
     );
@@ -106,6 +115,12 @@ export function ResultCard(props: Props) {
     !!result && (pending || result.requested_max_gap_m !== currentMaxGap);
   const hasRoute =
     !!result && (result.status === "ok" || result.status === "limit_unmet");
+  const legEnd = (index: number) => {
+    const coords = result?.route_geojson?.features.find(
+      (f) => f.properties.index === index,
+    )?.geometry.coordinates;
+    return coords?.[coords.length - 1];
+  };
 
   return (
     <section
@@ -182,6 +197,11 @@ export function ResultCard(props: Props) {
               </dl>
 
               <h3>Your walk, step by step</h3>
+              <p className="muted small">
+                When you set off, tap <strong>Google Maps</strong> on a stretch
+                for turn-by-turn walking directions from where you are. Google
+                may pick slightly different streets.
+              </p>
               <ol className="legs" data-testid="leg-list">
                 {result.legs.map((leg) => (
                   <li key={leg.index}>
@@ -205,6 +225,17 @@ export function ResultCard(props: Props) {
                         </span>
                       )}
                     </button>
+                    {!leg.to_id.startsWith("@hyp") && legEnd(leg.index) && (
+                      <a
+                        className="leg-nav"
+                        href={directionsUrl(legEnd(leg.index)!)}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Walking directions to ${leg.to_label} in Google Maps`}
+                      >
+                        Google Maps <span aria-hidden="true">↗</span>
+                      </a>
+                    )}
                   </li>
                 ))}
               </ol>

@@ -1,6 +1,7 @@
 export function fmtM(m: number | null | undefined): string {
   if (m === null || m === undefined || Number.isNaN(m)) return '–';
-  return `${Math.round(m).toLocaleString('en-US')} m`;
+  // `|| 0` turns a rounded -0 (e.g. -0.004 m of "extra" distance) into 0, not "-0".
+  return `${(Math.round(m) || 0).toLocaleString('en-US')} m`;
 }
 
 export function fmtDate(iso: string | null | undefined): string {

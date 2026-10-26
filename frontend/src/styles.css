@@ -482,6 +482,21 @@ h3 {
   color: var(--muted);
   margin: 8px 0 18px;
 }
+.examples {
+  display: grid;
+  gap: 6px;
+  margin: -6px 0 18px;
+}
+.examples-title {
+  font-size: 0.73rem;
+  color: var(--muted);
+  margin: 0;
+}
+.btn.example {
+  text-align: left;
+  white-space: normal;
+  line-height: 1.35;
+}
 .more-options {
   border-top: 1px solid var(--line);
   margin-top: 22px;
@@ -811,6 +826,33 @@ summary:focus-visible {
 }
 .leg-dist {
   font-weight: 700;
+}
+.legs li {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.legs li .leg {
+  flex: 1;
+  margin-bottom: 0;
+}
+.leg-nav {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.leg-nav:hover {
+  border-color: var(--ink);
 }
 .tag {
   flex-basis: 100%;

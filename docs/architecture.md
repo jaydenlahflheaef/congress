@@ -1,4 +1,4 @@
-> Update (26 October 2026): the user interface now defaults to `nearby`, with worldwide explicit place search and a background neighborhood loader. See [interface-update.md](interface-update.md) for the current flow and [../DEPLOY.md](../DEPLOY.md) for persistent hosting. Descriptions below of pre-imported data refer to the retained synthetic/prepared-pilot paths.
+> Update (26 October 2026, NYC): the planner (`nearby` mode) is New York City only. `scripts/update_nyc_data.py` writes OSM tiles, NYC DOT seating, the city outline and a prepared Flushing area to `data/nyc/`; `backend/app/data/nyc.py` and `nearby.py` build each trip's area from them in a background worker, with no network access. Place search (`/api/search`) is the only outside call. Descriptions below of pre-imported data refer to the retained synthetic/prepared-pilot paths.
 
 # Architecture
 

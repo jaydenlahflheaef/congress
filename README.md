@@ -2,7 +2,9 @@
 
 Rest Route plans walks around places to sit. You choose a start, a destination and the **maximum distance you want to walk between rests**. It finds the shortest mapped walking route that reaches a recorded seat often enough. If no route can meet your limit, it shows the route whose longest stretch without a seat is as short as possible, says by how much it exceeds your limit, and highlights those stretches.
 
-The main planner now searches worldwide and loads a small real OpenStreetMap walking area around the chosen trip. Endpoints can be up to 3 km apart; walking distance may be longer. The original fictional example is available under **How it works → Try an example walk**, and is never substituted for real data.
+Rest Route covers **New York City**. Each trip uses a small walking area cut from OpenStreetMap and NYC DOT data that is saved in this repository, so planning never waits on an outside map server. Endpoints can be up to 3 km apart; walking distance may be longer. Downtown Flushing is prepared ahead of time and opens instantly. The original fictional example is available under **How it works → Try an example walk**, and is never substituted for real data.
+
+On a phone, Rest Route installs as a Home Screen app (Safari → Share → Add to Home Screen). Each stretch of a planned walk has a **Google Maps** button for turn-by-turn walking directions to the next rest stop.
 
 A rest resets the distance count in the plan. That is a planning preference, not a medical estimate. Results are limited to mapped paths and recorded seats.
 
@@ -14,16 +16,36 @@ A rest resets the distance count in the plan. That is a planning preference, not
 | Synthetic demo (400 / 150 / 100 m slider demo, disconnected case) | Done, tested |
 | HTTP API | Done, tested |
 | Web app (map, slider, results, exclude seat, print, How it works) | Done, tested in Chromium |
-| Import pipeline for Flushing (OSM + NYC DOT) | Written and tested **offline only**. Must be run on a machine with internet access (see below). Until then, the retained `live_pilot` API reports `data_unavailable`. This does not affect the new on-demand planner. |
+| NYC data (OSM walkways and seats from an extract, NYC DOT seating, city outline, prepared Flushing area) | Built by `scripts/update_nyc_data.py` and committed (OSM extract dated 2026-10-24, NYC DOT dataset updated 2026-10-13) |
+| Original Flushing import (`scripts/prepare_pilot.py`, Overpass) | Kept for the `live_pilot` API only. Not run; that API reports `data_unavailable`. The planner does not use it |
 | Field validation | Not done. Template and process in `docs/validation.md` |
-| Deployment | Requires a persistent Python process for on-demand areas. See `DEPLOY.md`; no deployment performed |
+| Deployment | Docker image + Render Blueprint (`render.yaml`). See `DEPLOY.md` |
+| Home Screen app (iPhone/Android) | Manifest and icons added; tested in Chromium, not yet on a real iPhone |
 | Optional "propose a bench" planning experiment | Built for single trips (up to 3 hypothetical benches, with/without comparison). The "how many destinations become reachable" comparison is not built |
 
 ## Current interface and data loading
 
-Start with From, To, and your preferred distance between rests. Press Enter or the search icon to search; choose a result, then **Find my walk**. New areas load in the background with progress and can take several minutes when providers are busy. Subsequent slider changes reuse the loaded graph. Missing map data produces a clear error, never fictional benches. Comparison lines, street-map visibility, and hypothetical benches live under **Map options & experiments**.
+Start with From, To, and your preferred distance between rests, or tap one of the example walks in Flushing. Press Enter or the search icon to search New York City; choose a result, then **Find my walk**. A search result more than 40 m from any walkway (the middle of a large building or park) is moved to the nearest walkway within 250 m. Trips outside the five boroughs are refused with a plain message. Subsequent slider changes reuse the loaded area. Missing map data produces a clear error, never fictional benches. Comparison lines, street-map visibility, and hypothetical benches live under **Map options & experiments**.
 
-Area artifacts are cached in `data/areas/` (ignored by Git). Four areas stay in memory, up to twelve on disk, and artifacts older than seven days are refreshed. The on-demand source is OSM; NYC DOT data is currently used only by the retained prepared-pilot API. Field validation is still separate.
+New areas are built in a background worker from `data/nyc/` (usually 1 to 5 seconds on a laptop; longer on a small server). Built areas are cached in `data/areas/` (ignored by Git). Four areas stay in memory, up to twelve on disk, and areas older than seven days are rebuilt. An area dropped from memory is reloaded from disk when it is used again. Field validation is still separate.
+
+### NYC data
+
+`scripts/update_nyc_data.py` writes everything in `data/nyc/`:
+
+* `boundary.json`: the city outline (OpenStreetMap via Nominatim), widened by about 300 m.
+* `dot_seating.json.gz`: all NYC DOT Seating Locations records (dataset `esmy-s8q5`).
+* `osm/`: walkways and seating features from the BBBike.org New York OpenStreetMap extract, cut into about 450 tiles (25 MB). Stairs, private paths, indoor and underground passages are left out; at build time, walkway pieces of fewer than 50 nodes that connect to nothing else are dropped.
+* `seeds/flushing.json.gz`: the downtown Flushing area (`data/pilot_area.json`) built ahead of time, with the example trips in `data/pilot_trips.json`.
+
+To refresh it (about a minute, plus a 150 MB download into the ignored `data/nyc/raw/`):
+
+```bash
+.venv/bin/python -m pip install -r backend/requirements.txt
+.venv/bin/python scripts/update_nyc_data.py            # or --only dot,seed, or --pbf FILE
+```
+
+Commit the changed files in `data/nyc/`. Built areas from older data are not reused, because the tile version is part of each area's cache key.
 
 ## Quick start
 
@@ -46,11 +68,11 @@ Single-origin mode (what you would deploy): `cd frontend && npm run build`, then
 
 Optional Docker: `docker compose up --build` (local only).
 
-For hosting and the iPhone/Capacitor path, see **`DEPLOY.md`**. The on-demand area loader needs a persistent server; the former serverless recipe no longer applies.
+For hosting on Render and installing on an iPhone, see **`DEPLOY.md`**.
 
-## Importing the Flushing pilot
+## The original Flushing import (optional)
 
-The main planner downloads OSM data around each requested area automatically. The separate original Flushing + NYC DOT preparation pipeline remains available for research/API clients. To create those artifacts:
+The planner does not need this. The separate original Flushing + NYC DOT preparation pipeline, which downloads from the Overpass API, remains available for the `live_pilot` API. To create those artifacts:
 
 ```bash
 cd backend && source .venv/bin/activate && cd ..
@@ -82,6 +104,12 @@ cd frontend && npm run build && npx playwright install chromium && npx playwrigh
 python scripts/benchmark.py
 ```
 
+### Results after the NYC update (2026-10-26, macOS, Python 3.14)
+
+* Backend `pytest`: **756 passed** (adds tile-based area building, NYC-only trips and search, the prepared Flushing area, reloading evicted areas).
+* Frontend `vitest`: **28 passed**. Playwright (desktop + Pixel 7): **18 passed, 1 skipped**, including the Flushing example walk on the real committed data and the Home Screen manifest.
+* The server also ran from a clean Python 3.13 environment with only `backend/requirements-server.txt`: peak memory about 320 MB with Flushing plus four built areas.
+
 ### Results from the build session (2026-10-26, 2-vCPU Linux cloud workspace)
 
 * Backend `pytest`: **740 passed**. Includes 500 brute-force oracle comparisons on random terminal graphs, the single-label counterexample, monotonicity properties, attachment/splitting, directed and parallel edges, the API, and an offline end-to-end run of the import script on hand-made OSM/DOT-shaped inputs.
@@ -103,27 +131,31 @@ backend/app/main.py    FastAPI app
 backend/tests/         pytest suites
 frontend/src/          React app (components, hooks, api, tests)
 frontend/e2e/          Playwright flows
-scripts/               prepare_pilot.py, benchmark.py
+scripts/               update_nyc_data.py, prepare_pilot.py, benchmark.py
+data/nyc/              NYC outline, OSM tiles, NYC DOT seating, prepared Flushing area
 data/fixtures/         synthetic demo (fictional)
-data/pilot_area.json   pilot outline; data/pilot/ is created by the import
+data/pilot_area.json   downtown Flushing outline (prepared area and original import)
 docs/                  architecture, algorithm, data sources, validation, demo steps
 ```
 
 ## Known limitations
 
-* Each trip loads a bounded neighborhood with a 500 m routing buffer. Optimality and "not possible" claims apply only to that loaded map and its eligible seat records, not the whole city. Very dense areas (over 600 eligible seats or 20,000 graph nodes) are rejected explicitly.
+* New York City only. Each trip loads a bounded neighborhood with a 500 m routing buffer. Optimality and "not possible" claims apply only to that loaded map and its eligible seat records, not the whole city. Very dense areas (over 600 eligible seats or 20,000 graph nodes) are rejected explicitly.
 * Seat data can be incomplete or outdated, and seats may be occupied. Nothing has been field-checked yet.
 * No checks of curbs, slopes, crossings, surfaces, lighting or safety. The app never calls a route safe, accessible or step-free.
-* Stairs are excluded only where OSM tags them as steps.
+* Stairs are excluded only where OSM tags them as steps. Indoor and underground passages are excluded, so routes never go through stations or buildings.
+* With a strict limit, the shortest route that meets it can be much longer than the direct walk where benches are sparse (for example 2.2 km instead of 565 m from Penn Station to Macy's at 250 m). The "Added for rests" figure shows the difference.
+* The map data is a dated snapshot (see `data/nyc/osm/meta.json`); new benches or paths appear only after `update_nyc_data.py` is re-run.
+* Google Maps chooses its own streets between rest stops, which can differ from the measured route.
 * In the fallback, once the smallest possible longest leg is found, the route minimizes total distance; other legs may also exceed your limit even where an extra rest could shorten them (see `docs/algorithm.md`).
 * No walking-time estimates (no pace is assumed).
-* Worldwide place/address search uses Photon on explicit submission. Result coordinates can be building centers; unresolved walkway attachment asks users to adjust the map pin.
+* NYC place/address search uses Photon on explicit submission. Building and park results are moved to the nearest walkway, which is not necessarily the entrance; users can move the pin.
 * The default basemap uses the OpenStreetMap tile server and needs internet; the synthetic demo does not.
 * The service area coordinates in `data/pilot_area.json` are approximate and should be checked on the map.
 
 ## Data and licenses
 
-Map data © OpenStreetMap contributors (ODbL). Seating data from NYC DOT via NYC Open Data. Details, field mappings and dependency licenses: `docs/data_sources.md`.
+Map data © OpenStreetMap contributors (ODbL), via the BBBike.org New York extract. Seating data from NYC DOT via NYC Open Data. Details, field mappings and dependency licenses: `docs/data_sources.md`.
 
 ## More
 

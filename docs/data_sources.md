@@ -2,7 +2,9 @@
 
 ## OpenStreetMap (walking network and seating)
 
-* Retrieved by `scripts/prepare_pilot.py` through OSMnx (Overpass API).
+* For the planner: the BBBike.org New York extract (https://download.bbbike.org/osm/bbbike/NewYork/), read by `scripts/update_nyc_data.py` with pyosmium and saved as tiles in `data/nyc/osm/`. The extract date is in `data/nyc/osm/meta.json`. The same walk filter is applied in Python (`is_walkable_way`), plus two NYC rules: ways tagged `indoor` (other than `indoor=no`) or with a negative `level` are left out, and when an area is built, walkway pieces of fewer than 50 nodes that connect to nothing else are dropped.
+* The city outline (`data/nyc/boundary.json`) is OpenStreetMap's New York City boundary from Nominatim, simplified and widened by about 300 m.
+* For the original `live_pilot` import only: retrieved by `scripts/prepare_pilot.py` through OSMnx (Overpass API).
 * License: Open Database License 1.0. Attribution "© OpenStreetMap contributors" is shown on the map and on the How it works page. If you publish the imported data files, they remain under ODbL. See https://www.openstreetmap.org/copyright.
 * Walk filter (`WALK_FILTER` in `backend/app/data/sources.py`): OSMnx's default walk filter plus `highway=steps` excluded and `foot=private` excluded. Missing accessibility tags (surface, incline, wheelchair) stay unknown; they are kept on segments but not used for routing.
 * Seating: `amenity=bench` (a bench tagged `bench:type=stand_up` is treated as a leaning bar), `highway=bus_stop` with `bench=yes`, `amenity=shelter` with `bench=yes`. A stop or shelter without a `bench` tag is imported for display as "seating not recorded" and is **not** used for routing.
@@ -12,6 +14,7 @@
 * Linked from the NYC DOT seating page (https://www.nyc.gov/html/dot/html/pedestrians/seating.shtml) as "Find a bench or leaning bar via NYC Open Data".
 * Dataset page: https://data.cityofnewyork.us/Transportation/Seating-Locations/esmy-s8q5
 * API used: `https://data.cityofnewyork.us/resource/esmy-s8q5.json` with `$where=within_box(the_geom, …)`. Dataset metadata (`rowsUpdatedAt`) gives `source_updated_at`.
+* For the planner, `scripts/update_nyc_data.py` saves every record (5,702 on 2026-10-26; dataset updated 2026-10-13) to `data/nyc/dot_seating.json.gz`, and each area uses the records inside it. OSM and DOT records for the same bench are merged by the existing de-duplication rules.
 * Fields used (checked against the published column list on 2026-10-26): `siteid`, `asset_subtype`, `latitude`, `longitude`, `nearest_add`, `on_street`, `side_of_st`, `installation_date`. CSV exports use display names (`SiteID`, `Asset_Subtype`, …); the adapter accepts both.
 * `Asset_Subtype` mapping: `BACKED …` → bench with backrest; `BACKLESS …` → bench without; `WORLDS FAIR`, `UNKNOWN BENCH` → bench, backrest unknown; `LEANING BAR` → leaning bar (not counted by default); empty → type not recorded (not counted by default, because it could be a leaning bar). At retrieval time the column summary showed about 880 of 5,702 rows with an empty subtype.
 * Terms: NYC Open Data terms of use (https://opendata.cityofnewyork.us/overview/#termsofuse).

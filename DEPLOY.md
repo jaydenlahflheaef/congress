@@ -1,8 +1,6 @@
 # Running and hosting Rest Route
 
-The current planner loads real walking areas on demand. Use **one persistent Python process** with outbound HTTPS access and writable storage. The worker prepares map data while the browser polls for progress; slider updates use cached local data.
-
-The older Vercel serverless setup in `vercel.json` and `index.py` is retained for reference, but it is **not a supported deployment for this background area-loading workflow**. A request can land on a different function instance, and background work may be suspended. No deployment has been performed in this update.
+Rest Route runs as **one persistent Python process** that serves both the web page and the API. It reads its New York City map data from `data/nyc/` (committed), builds walking areas in a background worker, and needs outbound HTTPS only for place search (Photon). Keep a single worker/replica: area progress and the search rate limiter are held in process memory.
 
 ## Local app
 
@@ -18,33 +16,51 @@ npm --prefix frontend run build
 
 Open http://127.0.0.1:8000. On Windows use `.venv\Scripts\python`.
 
-## Persistent host
+## Hosting on Render
 
-The included Dockerfile builds the frontend and serves it from FastAPI. Deploy that container to a host supporting an always-running service and persistent storage when you are ready. Put HTTPS in front of port 8000. Keep a single worker/replica for now, because progress, active datasets, and the provider rate limiter are held in process memory. A production service serving many users will need a shared queue, cache, quotas, and an appropriate map-data provider.
+`render.yaml` describes one web service built from the `Dockerfile` (frontend build, then the server with only `backend/requirements-server.txt`).
 
-Mount persistent storage at `/app/data/areas`, or configure `REST_ROUTE_AREA_CACHE`. Local Docker Compose mounts `./data/areas` there. Old on-disk areas are not reused after seven days; at most twelve area artifacts are retained. Only four areas are held in memory. A route for an evicted area must load it again (usually from disk).
+1. Sign in at https://dashboard.render.com with your GitHub account.
+2. **New → Blueprint**, connect GitHub if asked, and give Render access to this repository.
+3. Pick the repository and confirm. Render reads `render.yaml`, builds the image and starts the service. The first build takes several minutes.
+4. Open the `https://….onrender.com` address it shows. `/api/health` should return `"status": "ok"`.
 
-Provider settings:
+Every push to the connected branch redeploys automatically.
 
-- `REST_ROUTE_GEOCODER_URL`: Photon-compatible endpoint, default `https://photon.komoot.io/api/`. Explicit user searches only; cached, serialized and limited to one request per second in this process. Public Photon is for reasonable small-project use and has no availability guarantee: https://github.com/komoot/photon.
-- `REST_ROUTE_OVERPASS_URL`: default `https://overpass-api.de/api`. Used by OSMnx for new areas, not slider reroutes. Provider congestion can make first loads slow or fail.
-- `VITE_TILE_URL` and `VITE_TILE_ATTRIBUTION`: replaceable tile provider, set before frontend build. Preserve attribution and respect provider usage limits.
+About the free plan:
 
-Location requests require HTTPS outside localhost. Access logs should stay disabled because search strings are in query URLs. Application code does not log trip coordinates. Place searches go to Photon; a rounded surrounding area goes to Overpass; map tile requests disclose the viewport. No credentials or private trip names are saved in area artifacts.
+* It sleeps after about 15 minutes without visitors; the next visit takes about a minute to wake up.
+* Its CPU is small, so a new walking area takes roughly 15 to 45 seconds to build (downtown Flushing is prepared and opens instantly). Built areas are reused while the service is running, but its disk is not kept across restarts or redeploys.
+* Memory use is about 320 MB with five areas loaded, within the free plan's 512 MB.
 
-## iPhone app path
+A paid instance removes the sleep and builds areas faster. Change `plan:` in `render.yaml` or the instance type in the dashboard.
 
-The current deliverable is a responsive web app, not a compiled iOS app.
+To keep built areas across restarts on another host, mount persistent storage at `/app/data/areas` or set `REST_ROUTE_AREA_CACHE`.
 
-To package the existing React interface for iPhone:
+## Installing on an iPhone (Home Screen app)
 
-1. Host the Python backend at an HTTPS URL with the persistent process described above.
-2. Add Capacitor to `frontend`, set its `webDir` to `dist`, and add the iOS platform.
-3. Set `VITE_API_BASE` to the hosted backend URL before building. Configure backend CORS for the intended Capacitor origin, not all origins.
-4. Build the web assets, synchronize Capacitor, and open the generated iOS project in Xcode on a Mac.
-5. Configure signing, app icons, location permission wording/native integration, and printing/sharing behavior. Test on an iPhone and with VoiceOver.
-6. Use the Apple distribution route appropriate to your goal (personal device testing, TestFlight, or App Store submission). App Store acceptance is not guaranteed by wrapping a website.
+Rest Route is a web app that installs to the Home Screen. No App Store, Xcode or Apple developer account is needed.
 
-Official setup: https://capacitorjs.com/docs/getting-started and https://capacitorjs.com/docs/ios.
+1. On the iPhone, open the Render address in **Safari**.
+2. Tap **Share** (the square with an arrow), then **Add to Home Screen**, then **Add**.
+3. Open Rest Route from its icon. It runs full screen with its own icon. "Use my location" asks for permission the first time.
 
-For a quicker Home Screen experience, a hosted web version can be added from Safari. That is a separate delivery option; this update has not added offline support, a service worker, or native packaging.
+On Android, open the address in Chrome and choose **Add to Home screen** or **Install app**.
+
+Each stretch of a planned walk has a **Google Maps** button. It opens Google Maps walking directions from the phone's current location to the next rest stop (the Google Maps app if installed, otherwise the website). It uses a Maps URL and needs no Google account or API key.
+
+A native App Store app would need Xcode, an Apple developer account for distribution, and a wrapper such as Capacitor around the same frontend. That is not set up.
+
+## Settings
+
+- `REST_ROUTE_GEOCODER_URL`: Photon-compatible endpoint, default `https://photon.komoot.io/api/`. Explicit searches only, limited to New York City, cached, serialized and limited to one request per second in this process. Public Photon is for reasonable small-project use and has no availability guarantee: https://github.com/komoot/photon.
+- `REST_ROUTE_AREA_CACHE`: where built areas are saved (default `data/areas`).
+- `VITE_TILE_URL` and `VITE_TILE_ATTRIBUTION`: replaceable map tile provider, set before the frontend build. Preserve attribution and respect provider usage limits.
+
+## Privacy notes
+
+Location requests require HTTPS outside localhost (Render provides it). Access logs should stay disabled because search strings are in query URLs. Application code does not log trip coordinates. Place searches go to Photon; map tile requests disclose the viewport; Google Maps receives a rest stop's location only when its button is tapped. Walking areas are built from local data, so trips are not sent to any map data service. No credentials or trip names are saved in area files.
+
+## Refreshing the NYC data
+
+See README, "NYC data". Run `scripts/update_nyc_data.py`, commit `data/nyc/`, and push; Render redeploys with the new data.

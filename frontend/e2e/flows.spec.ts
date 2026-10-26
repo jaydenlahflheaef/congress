@@ -217,3 +217,39 @@ test("real planner fits mobile and has no automatic location prompt @mobile", as
     fullPage: true,
   });
 });
+
+test("Flushing example walk routes on real NYC data with Google Maps links @mobile", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", {
+      name: "Flushing–Main St station to Queens Public Library at Flushing",
+    })
+    .click();
+  await expect(page.getByTestId("status-heading")).toContainText(
+    "Within your selected limit",
+  );
+  await expect(page.getByTestId("demo-indicator")).toHaveCount(0);
+  const links = page.getByRole("link", { name: /in Google Maps$/ });
+  await expect(links.first()).toHaveAttribute(
+    "href",
+    /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=40\.7\d+,-73\.8\d+&travelmode=walking$/,
+  );
+  expect(await links.count()).toBe(
+    await page.getByTestId("leg-list").locator("li").count(),
+  );
+  await page.screenshot({
+    path: `test-results/flushing-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+});
+
+test("home screen app manifest and icon are served", async ({ request }) => {
+  const manifest = await request.get("/manifest.webmanifest");
+  expect(manifest.ok()).toBe(true);
+  expect(manifest.headers()["content-type"]).toContain("application/manifest+json");
+  expect((await manifest.json()).display).toBe("standalone");
+  const icon = await request.get("/apple-touch-icon.png");
+  expect(icon.headers()["content-type"]).toBe("image/png");
+});

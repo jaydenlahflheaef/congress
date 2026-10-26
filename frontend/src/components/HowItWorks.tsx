@@ -29,26 +29,33 @@ export function HowItWorks({
           Try an example walk
         </button>
       </div>
-      <h2>Choose a place, anywhere</h2>
+      <h2>Choose a place in New York City</h2>
       <p>
-        Search for a place or address with its city, or use the map to select
-        your start and destination. We load a small walking area around your
-        trip. The two points can be up to 3 km apart; walking distance may be
-        longer. Loading a new area can take a minute or two.
+        Search for a place or address in the five boroughs, or use the map to
+        select your start and destination. The two points can be up to 3 km
+        (about 1.9 miles) apart; walking distance may be longer. We cut a small
+        walking area around your trip from map data saved with the app, which
+        usually takes a few seconds. Downtown Flushing is prepared ahead of time
+        and opens instantly.
+      </p>
+      <p>
+        When a search finds a large building or park, its pin is moved to the
+        nearest sidewalk or path, since that is where a walk starts or ends.
       </p>
       <h2>The idea in four steps</h2>
       <ol>
         <li>
           <strong>Walking map.</strong> Sidewalks, footpaths and streets from
           OpenStreetMap become a network of connected pieces, each with a length
-          in meters. Known stairs and private paths are left out.
+          in meters. Known stairs, private paths, indoor passages and small
+          pieces that connect to nothing else are left out.
         </li>
         <li>
-          <strong>Seats.</strong> Benches recorded in OpenStreetMap are
-          connected to mapped walkways when their attachment is unambiguous. The
-          original imported Flushing dataset can also include NYC DOT seating
-          records. Leaning bars, shelters without recorded seating, and seats
-          with unclear locations are shown but not counted.
+          <strong>Seats.</strong> Benches recorded in OpenStreetMap and NYC
+          DOT's citywide seating records are combined, with duplicates merged,
+          and connected to mapped walkways when their attachment is
+          unambiguous. Leaning bars, shelters without recorded seating, and
+          seats with unclear locations are shown but not counted.
         </li>
         <li>
           <strong>Distances.</strong> For every pair of seats (and your start
@@ -79,6 +86,14 @@ export function HowItWorks({
           plain shortest walk.
         </li>
       </ul>
+
+      <h2>Navigating with Google Maps</h2>
+      <p>
+        Each stretch of your walk has a Google Maps button. It opens walking
+        directions from where you are to the next rest stop, so you can follow
+        turn-by-turn directions one stop at a time. Google Maps chooses its own
+        streets, which may differ slightly from the route Rest Route measured.
+      </p>
 
       <h2>Propose a bench</h2>
       <p>
@@ -115,10 +130,12 @@ export function HowItWorks({
       <h2>Privacy</h2>
       <p>
         Your start and destination are sent to the Rest Route server to compute
-        the route and are not written to application logs. New area requests
-        send a surrounding map boundary to OpenStreetMap’s Overpass service;
-        cached areas are reused for up to seven days. Place searches are sent to
-        Photon and cached temporarily in server memory. The map service receives
+        the route and are not written to application logs. Walking areas are
+        built from map data stored on the server, so trips are not sent to any
+        map data service; built areas are reused for up to seven days. Place
+        searches are sent to Photon and cached temporarily in server memory.
+        Google Maps only receives a rest stop's location when you tap its
+        button. The map service receives
         requests for the map area you are viewing. Your location is only
         requested if you press "Use my location". Only your rest-distance
         setting is saved in this browser.
@@ -128,7 +145,8 @@ export function HowItWorks({
       <ul>
         <li>
           Walking network and benches: © OpenStreetMap contributors, available
-          under the Open Database License (
+          under the Open Database License, from the BBBike.org New York extract
+          (
           <a href="https://www.openstreetmap.org/copyright">
             openstreetmap.org/copyright
           </a>
