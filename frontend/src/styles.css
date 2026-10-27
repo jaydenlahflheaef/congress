@@ -9,6 +9,8 @@
   --muted: #6d5a6b;
   --line: #f1dccb;
   --on-color: #fff;
+  --on-brand: #fff;
+  --gradient-btn: linear-gradient(135deg, #c23a1d, #cf5218);
   --primary: #d2462a;
   --primary-strong: #ad3519;
   --primary-soft: #ffe0d4;
@@ -45,6 +47,8 @@
   --muted: #c4b2c2;
   --line: #43354a;
   --on-color: #fff;
+  --on-brand: #2a1a2e;
+  --gradient-btn: linear-gradient(135deg, #ff7656, #ffc94f);
   --primary: #ff7656;
   --primary-strong: #ff9479;
   --primary-soft: #4a2a2a;
@@ -923,8 +927,9 @@ body {
   right: 12px;
   margin: 0 auto;
   max-width: 520px;
-  background: var(--ink);
-  color: var(--on-color);
+  background: var(--card);
+  color: var(--ink);
+  border: 1.5px solid var(--primary);
   border-radius: 12px;
   padding: 10px 14px;
   font-size: 0.86rem;
@@ -935,10 +940,12 @@ body {
   justify-content: space-between;
 }
 .map-banner .text-button {
-  color: var(--on-color);
+  color: var(--sky);
+  font-weight: 700;
 }
 .map-banner.warn {
-  background: var(--amber);
+  background: var(--amber-soft);
+  border-color: var(--amber);
 }
 
 /* Markers inside the Google map */
@@ -1307,14 +1314,14 @@ h1, h2, h3, .brand, .how h1, .how h2 { font-family: var(--font-head); font-weigh
 a { color: var(--sky); }
 .brand { color: var(--ink); }
 .brand-dot { color: var(--sun); }
-.logo { background: var(--gradient-brand) !important; color: var(--on-color) !important; border-radius: 12px !important; }
+.logo { background: var(--gradient-btn) !important; color: var(--on-brand) !important; border-radius: 12px !important; }
 .theme-toggle { margin-left: auto; margin-right: 6px; width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--plum-soft); color: var(--plum); transition: transform .2s; }
 .theme-toggle:active { transform: scale(.92); }
 .btn { border-radius: 999px; min-height: 48px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); }
 .btn:hover { background: var(--primary-soft); }
-.btn.primary, .btn.start { background: var(--gradient-brand); border: 0; color: var(--on-color); box-shadow: 0 8px 20px #d2462a40; text-shadow: 0 1px 2px #0003; }
+.btn.primary, .btn.start { background: var(--gradient-btn); border: 0; color: var(--on-brand); font-weight: 700; box-shadow: 0 8px 20px #d2462a40; }
 .btn.primary:hover, .btn.start:hover { filter: brightness(1.05); }
-.btn.primary:disabled { background: var(--line); color: var(--muted); box-shadow: none; text-shadow: none; }
+.btn.primary:disabled { background: var(--line); color: var(--muted); box-shadow: none; }
 .btn.example { border-radius: 18px; background: var(--sky-soft); border: 1.5px solid transparent; text-align: left; color: var(--ink); }
 .btn.example:nth-of-type(3n+2) { background: var(--sun-soft); }
 .btn.example:nth-of-type(3n) { background: var(--plum-soft); }
@@ -1609,11 +1616,40 @@ a { color: var(--sky); }
   color: var(--on-color);
   border-color: var(--teal);
 }
-.user-location-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #2f7fd0;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 6px rgba(47, 127, 208, 0.28), 0 2px 6px rgba(0, 0, 0, 0.35);
+
+/* "You are here": blue dot, accuracy halo, and a beam showing which way you face.
+   Colors stay fixed so the dot reads on both the light and the dark map. */
+.you { position: relative; width: 0; height: 0; }
+.you-halo {
+  position: absolute; border-radius: 50%;
+  background: rgba(74, 163, 255, 0.2); border: 1px solid rgba(74, 163, 255, 0.5);
+  transform: translate(-50%, -50%);
 }
+.you-cone {
+  position: absolute; left: -64px; top: -64px; width: 128px; height: 128px;
+  background: conic-gradient(from -38deg at 50% 50%, rgba(74,163,255,0) 0deg, rgba(74,163,255,.95) 38deg, rgba(74,163,255,0) 76deg, rgba(74,163,255,0) 360deg);
+  -webkit-mask-image: radial-gradient(circle at center, transparent 9px, #000 14px, transparent 64px);
+  mask-image: radial-gradient(circle at center, transparent 9px, #000 14px, transparent 64px);
+  transition: transform 0.25s linear;
+  pointer-events: none;
+}
+.you-dot {
+  position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; border-radius: 50%;
+  background: #2f7fd0; border: 3.5px solid #fff; box-shadow: 0 2px 8px #0006;
+}
+/* Pins stay upright when the map is turned */
+.html-marker > :not(.you) { transform: rotate(calc(var(--map-rot, 0deg) * -1)) scale(var(--map-inv, 1)); }
+.map-rotator.turning { transition: transform 0.28s linear; }
+.map-shell { touch-action: none; }
+
+/* Floating map buttons, kept above the bottom sheet */
+.map-fab {
+  position: fixed; z-index: 24; right: 12px; bottom: calc(var(--sheet-h, 120px) + 12px);
+  width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--line);
+  background: var(--card); color: var(--sky); box-shadow: var(--shadow-soft);
+  display: grid; place-items: center; padding: 0;
+}
+.map-fab.on { background: var(--sky); color: #fff; border-color: var(--sky); }
+.map-fab.paused { border-color: var(--primary); color: var(--primary); }
+@media (min-width: 821px) { .map-fab { bottom: 28px; } }
+.compass-reset { top: calc(var(--top-bottom) + 12px); }

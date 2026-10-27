@@ -16,6 +16,8 @@ import {
 } from "./api/client";
 import { useRoutePlanner } from "./hooks/useRoutePlanner";
 import { useBottomEdge, useMediaQuery } from "./hooks/useLayout";
+import { useLiveLocation } from "./hooks/useLiveLocation";
+import { useCompass } from "./hooks/useCompass";
 import { LimitControl } from "./components/LimitControl";
 import { PlaceSearch } from "./components/PlaceSearch";
 import { ResultCard } from "./components/ResultCard";
@@ -90,7 +92,9 @@ export default function App() {
   const [restrooms, setRestrooms] = useState<PublicRestroom[]>([]);
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const [walkingLeg, setWalkingLeg] = useState<number | null>(null);
-  const [userLocation, setUserLocation] = useState<LatLon | null>(null);
+  const [locateOn, setLocateOn] = useState(false);
+  const [followPaused, setFollowPaused] = useState(false);
+  const [centerToken, setCenterToken] = useState(0);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [page, setPage] = useState<"plan" | "how">(
     window.location.hash === "#how" ? "how" : "plan",
@@ -106,7 +110,6 @@ export default function App() {
   const areaRequest = useRef<AbortController | null>(null);
   const areaRevision = useRef(0);
   const locationRevision = useRef(0);
-  const watchIdRef = useRef<number | null>(null);
   const [topEl, setTopEl] = useState<HTMLElement | null>(null);
   // Where the floating search card ends, measured on screen so it includes
   // the iPhone status-bar inset; the raised sheet stops below it.
@@ -134,40 +137,21 @@ export default function App() {
       ctrl.abort();
       areaRequest.current?.abort();
       locationRevision.current++;
-      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
     };
   }, []);
 
-  // Optional live position tracking while walking mode is active
+  // Live position and facing direction, while walking or after pressing Locate.
+  const tracking = walkingLeg !== null || locateOn;
+  const { fix, denied } = useLiveLocation(tracking);
+  const compass = useCompass(tracking);
+  const heading = compass.heading ?? fix?.travelHeading ?? null;
+  const follow = walkingLeg !== null && !followPaused;
   useEffect(() => {
-    if (walkingLeg === null) {
-      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-      return;
+    if (denied && tracking) {
+      setGeoMsg("Location is off for EzWay. Allow it in Settings to see where you are.");
+      setLocateOn(false);
     }
-    if (mode === "nearby" && navigator.geolocation?.watchPosition) {
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (pos) => {
-          setUserLocation({
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-          });
-        },
-        () => undefined,
-        { enableHighAccuracy: true, maximumAge: 5000 },
-      );
-    }
-    return () => {
-      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    };
-  }, [walkingLeg, mode]);
+  }, [denied, tracking]);
 
   const modeCfg =
     mode === "synthetic_demo"
@@ -323,10 +307,6 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (ticket !== locationRevision.current) return;
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-        });
         setOrigin({
           name: "My location",
           lat: pos.coords.latitude,
@@ -419,11 +399,28 @@ export default function App() {
     }
   };
   const startWalkLeg = (legIndex: number | null) => {
+    // iPhones only share the compass after a tap, so ask right here.
+    if (legIndex !== null && walkingLeg === null) {
+      void compass.request();
+      setFollowPaused(false);
+      setCenterToken((t) => t + 1);
+    }
     setWalkingLeg(legIndex);
     setSelectedLeg(legIndex);
     if (legIndex !== null) {
       setSnap("peek");
     }
+  };
+  // The Locate button: show where you are, or jump back to you after moving the map.
+  const locate = () => {
+    if (!tracking) {
+      void compass.request();
+      setLocateOn(true);
+    } else if (!fix && !denied) {
+      setGeoMsg("Finding your location…");
+    }
+    setFollowPaused(false);
+    setCenterToken((t) => t + 1);
   };
   const examples = mode === "nearby" ? (config?.modes.nearby?.trips ?? []) : [];
   const seatsById = useMemo(
@@ -574,7 +571,10 @@ export default function App() {
   );
 
   return (
-    <div className="app" style={{ "--top-bottom": `${topBottom}px` } as CSSProperties}>
+    <div
+      className="app"
+      style={{ "--top-bottom": `${topBottom}px`, "--sheet-h": `${mobile ? sheetH : 0}px` } as CSSProperties}
+    >
       <MapView
         apiKey={config.google_maps?.api_key ?? null}
         config={modeCfg}
@@ -583,7 +583,11 @@ export default function App() {
         showRestrooms={showRestrooms}
         focusedRestroomId={focusedRestroomId}
         onFocusRestroom={setFocusedRestroomId}
-        userLocation={userLocation}
+        you={fix}
+        heading={heading}
+        follow={follow}
+        centerToken={centerToken}
+        onUserMoved={() => setFollowPaused(true)}
         walkingLeg={walkingLeg}
         onStartWalkLeg={startWalkLeg}
         result={result}
@@ -604,6 +608,16 @@ export default function App() {
         onExclude={onExclude}
         padding={padding}
       />
+      <button
+        type="button"
+        className={`map-fab ${tracking && fix ? "on" : ""} ${follow || !walkingLeg ? "" : "paused"} ${walkingLeg !== null && followPaused ? "paused" : ""}`}
+        aria-label={walkingLeg !== null && followPaused ? "Re-center on me" : tracking ? "Center on me" : "Show where I am"}
+        title={walkingLeg !== null && followPaused ? "Re-center on me" : "Show where I am"}
+        data-testid="locate-button"
+        onClick={locate}
+      >
+        <Icon name="locate" size={24} />
+      </button>
 
       <header className="top no-print" ref={setTopEl}>
         <div className="search-card">

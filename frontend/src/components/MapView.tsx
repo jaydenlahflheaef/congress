@@ -1,6 +1,7 @@
 /// <reference types="google.maps" />
 import {
   Component,
+  type CSSProperties,
   useEffect,
   useMemo,
   useRef,
@@ -27,6 +28,7 @@ import type {
   Seat,
 } from "../types";
 import { fmtM } from "../format";
+import { toMapFrame, turnToHeading } from "../geometry";
 
 const COLORS = {
   teal: "#d2462a",
@@ -86,7 +88,15 @@ interface Props {
   showRestrooms?: boolean;
   focusedRestroomId?: string | null;
   onFocusRestroom?: (id: string | null) => void;
-  userLocation?: LatLon | null;
+  /** Where the phone is (only while tracking), and which way it faces. */
+  you?: { lat: number; lon: number; accuracy: number } | null;
+  heading?: number | null;
+  /** Walking: lock the camera on you and turn the map to face your direction. */
+  follow?: boolean;
+  /** Changes whenever the Locate button is pressed, to re-center once. */
+  centerToken?: number;
+  /** The person moved or turned the map by hand, so following should pause. */
+  onUserMoved?: () => void;
   walkingLeg?: number | null;
   onStartWalkLeg?: (index: number | null) => void;
   result: RouteResponse | null;
@@ -271,6 +281,110 @@ class MapErrorBoundary extends Component<{ children: ReactNode }, { failed: bool
       this.props.children
     );
   }
+}
+
+/** Hands the live map object to code outside the <Map> element (touch gestures). */
+function MapRef({ target }: { target: { current: google.maps.Map | null } }) {
+  const map = useMap();
+  useEffect(() => {
+    target.current = map;
+    return () => {
+      target.current = null;
+    };
+  }, [map, target]);
+  return null;
+}
+
+/** Move the map's center by a pixel offset (in the map element's own, unrotated frame). */
+function shiftCenter(map: google.maps.Map, dx: number, dy: number) {
+  const proj = map.getProjection();
+  const center = map.getCenter();
+  const zoom = map.getZoom();
+  if (!proj || !center || zoom === undefined) return;
+  const p = proj.fromLatLngToPoint(center)!;
+  const scale = 2 ** zoom;
+  const next = proj.fromPointToLatLng(new google.maps.Point(p.x + dx / scale, p.y + dy / scale));
+  if (next) map.setCenter(next);
+}
+
+/** Keeps you in view: re-centers when asked, and follows you while walking. */
+function CameraControl({
+  you,
+  follow,
+  centerToken,
+  padding,
+  rotationDeg,
+  lower,
+}: {
+  you: { lat: number; lon: number } | null;
+  follow: boolean;
+  centerToken: number;
+  padding: MapPadding;
+  rotationDeg: number;
+  lower: number;
+}) {
+  const map = useMap();
+  const lastToken = useRef(centerToken);
+  const wasFollowing = useRef(false);
+  const rot = useRef(rotationDeg);
+  rot.current = rotationDeg;
+  useEffect(() => {
+    if (!map || !you) return;
+    const recenter = centerToken !== lastToken.current;
+    lastToken.current = centerToken;
+    const startedFollowing = follow && !wasFollowing.current;
+    wasFollowing.current = follow;
+    if (!follow && !recenter) return;
+    if (recenter || startedFollowing) {
+      const minZoom = follow ? 18 : 17;
+      if ((map.getZoom() ?? 0) < minZoom) map.setZoom(minZoom);
+    }
+    // Put you in the middle of the visible part of the map, a little low while
+    // walking so there is more room to see what is ahead.
+    const down = (padding.top - padding.bottom) / 2 + (follow ? lower : 0);
+    const c = toMapFrame(0, down, rot.current);
+    const proj = map.getProjection();
+    const zoom = map.getZoom();
+    if (!proj || zoom === undefined) {
+      map.panTo({ lat: you.lat, lng: you.lon });
+      return;
+    }
+    const p = proj.fromLatLngToPoint(new google.maps.LatLng(you.lat, you.lon))!;
+    const scale = 2 ** zoom;
+    const target = proj.fromPointToLatLng(new google.maps.Point(p.x - c.x / scale, p.y - c.y / scale));
+    if (target) map.panTo(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, you?.lat, you?.lon, follow, centerToken]);
+  return null;
+}
+
+/** The blue "you are here" dot, with an accuracy halo and a beam toward where you face. */
+function YouMarker({
+  you,
+  heading,
+}: {
+  you: { lat: number; lon: number; accuracy: number };
+  heading: number | null;
+}) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map?.getZoom() ?? 17);
+  useEffect(() => {
+    if (!map) return;
+    setZoom(map.getZoom() ?? 17);
+    const l = map.addListener("zoom_changed", () => setZoom(map.getZoom() ?? 17));
+    return () => l.remove();
+  }, [map]);
+  const metersPerPx = (156543.03392 * Math.cos((you.lat * Math.PI) / 180)) / 2 ** zoom;
+  const radius = Math.min(160, you.accuracy / metersPerPx);
+  return (
+    <HtmlMarker lat={you.lat} lng={you.lon} title="You are here" zIndex={40}>
+      <div className="you" data-testid="you-are-here" data-heading={heading === null ? "" : Math.round(heading)}>
+        {radius > 14 && <div className="you-halo" style={{ width: radius * 2, height: radius * 2 }} />}
+        {heading !== null && <div className="you-cone" style={{ transform: `rotate(${heading}deg)` }} />}
+        <div className="you-dot" />
+      </div>
+    </HtmlMarker>
+  );
 }
 
 /** Shown when Google refuses the key or its script cannot load. */
@@ -562,16 +676,7 @@ function Overlays(
           <Pin text="B" cls="endpoint destination" />
         </HtmlMarker>
       )}
-      {props.userLocation && (
-        <HtmlMarker
-          lat={props.userLocation.lat}
-          lng={props.userLocation.lon}
-          title="Your live position"
-          zIndex={35}
-        >
-          <div className="user-location-dot" />
-        </HtmlMarker>
-      )}
+      {props.you && <YouMarker you={props.you} heading={props.heading ?? null} />}
 
       {popup && (
         <InfoWindow
@@ -657,8 +762,48 @@ export default function MapView(props: Props) {
   const [popup, setPopup] = useState<string | null>(null);
   const [rrPopup, setRrPopup] = useState<string | null>(null);
   const [rotationDeg, setRotationDeg] = useState(0);
-  const touchStartAngle = useRef<number | null>(null);
-  const touchBaseRot = useRef(0);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  // Phones: EzWay handles drag, pinch and twist itself, so they stay correct
+  // when the map is turned. Computers keep Google's own mouse controls.
+  const touchDevice = useMemo(() => window.matchMedia?.("(pointer: coarse)").matches ?? false, []);
+  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const on = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  // The map layer is a square as wide as the screen diagonal, centered on the
+  // screen, so turning it never shows an edge or stretches the tiles.
+  const side = touchDevice ? Math.ceil(Math.hypot(size.w, size.h)) : 0;
+  const offX = touchDevice ? (side - size.w) / 2 : 0;
+  const offY = touchDevice ? (side - size.h) / 2 : 0;
+  const gesture = useRef<{
+    kind: "pan" | "pinch";
+    x: number;
+    y: number;
+    dist: number;
+    angle: number;
+    baseRot: number;
+    baseZoom: number;
+    moved: boolean;
+  } | null>(null);
+  const userMoved = () => props.onUserMoved?.();
+
+  // While walking, turn the map so the direction you face is up.
+  useEffect(() => {
+    if (props.armed) {
+      setRotationDeg(0);
+      return;
+    }
+    if (!props.follow || props.heading == null) return;
+    setRotationDeg((prev) => {
+      const next = turnToHeading(prev, props.heading!);
+      return Math.abs(next - prev) < 1.5 ? prev : next;
+    });
+  }, [props.follow, props.heading, props.armed]);
+  useEffect(() => {
+    if (props.walkingLeg == null) setRotationDeg(0);
+  }, [props.walkingLeg]);
   const authFailed = useGoogleAuthFailure();
   const dark = useDarkTheme();
   const region = props.config.region_bounds;
@@ -737,31 +882,55 @@ export default function MapView(props: Props) {
     </div>
   ) : null;
 
-  const getTouchAngle = (touches: React.TouchList) => {
-    const dx = touches[1].clientX - touches[0].clientX;
-    const dy = touches[1].clientY - touches[0].clientY;
-    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  const fingers = (t: React.TouchList) => {
+    const dx = t[1].clientX - t[0].clientX;
+    const dy = t[1].clientY - t[0].clientY;
+    return { dist: Math.hypot(dx, dy), angle: (Math.atan2(dy, dx) * 180) / Math.PI };
   };
-
   const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      touchStartAngle.current = getTouchAngle(e.touches);
-      touchBaseRot.current = rotationDeg;
+    if (!touchDevice || props.armed) return;
+    const map = mapRef.current;
+    if (e.touches.length === 1) {
+      gesture.current = { kind: "pan", x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0, angle: 0, baseRot: rotationDeg, baseZoom: map?.getZoom() ?? 0, moved: false };
+    } else if (e.touches.length === 2) {
+      const f = fingers(e.touches);
+      gesture.current = { kind: "pinch", x: 0, y: 0, dist: f.dist, angle: f.angle, baseRot: rotationDeg, baseZoom: map?.getZoom() ?? 0, moved: false };
     }
   };
-
   const onTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && touchStartAngle.current !== null) {
-      const current = getTouchAngle(e.touches);
-      let next = touchBaseRot.current + (current - touchStartAngle.current);
-      next = ((((next + 180) % 360) + 360) % 360) - 180;
-      setRotationDeg(next);
+    const g = gesture.current;
+    const map = mapRef.current;
+    if (!g || !map || !touchDevice) return;
+    if (g.kind === "pan" && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - g.x;
+      const dy = e.touches[0].clientY - g.y;
+      if (!g.moved && Math.hypot(dx, dy) < 4) return;
+      if (!g.moved) userMoved();
+      g.moved = true;
+      g.x = e.touches[0].clientX;
+      g.y = e.touches[0].clientY;
+      // Dragging the map moves its center the opposite way, in the turned frame.
+      const c = toMapFrame(dx, dy, rotationDeg);
+      shiftCenter(map, -c.x, -c.y);
+    } else if (g.kind === "pinch" && e.touches.length === 2) {
+      const f = fingers(e.touches);
+      const turn = f.angle - g.angle;
+      const steps = Math.round(Math.log2(f.dist / g.dist));
+      if (!g.moved && (Math.abs(turn) > 4 || steps !== 0)) {
+        g.moved = true;
+        userMoved();
+      }
+      if (!g.moved) return;
+      setRotationDeg(((((g.baseRot + turn + 180) % 360) + 360) % 360) - 180);
+      if (g.baseZoom + steps !== map.getZoom()) map.setZoom(g.baseZoom + steps);
     }
   };
-
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (e.touches.length < 2) {
-      touchStartAngle.current = null;
+    if (e.touches.length === 0) gesture.current = null;
+    else if (e.touches.length === 1 && gesture.current?.kind === "pinch") {
+      // One finger stayed down after a pinch: carry on as a drag from here.
+      const map = mapRef.current;
+      gesture.current = { kind: "pan", x: e.touches[0].clientX, y: e.touches[0].clientY, dist: 0, angle: 0, baseRot: rotationDeg, baseZoom: map?.getZoom() ?? 0, moved: true };
     }
   };
 
@@ -790,11 +959,15 @@ export default function MapView(props: Props) {
     >
       <MapErrorBoundary>
         <div
-          className={`map-rotator ${isRotated ? "is-rotated" : ""}`}
+          className={`map-rotator ${props.follow ? "turning" : ""}`}
           style={
-            isRotated
-              ? { transform: `rotate(${rotationDeg}deg) scale(1.42)` }
-              : undefined
+            {
+              ...(touchDevice
+                ? { position: "absolute", width: side, height: side, left: -offX, top: -offY }
+                : null),
+              transform: isRotated ? `rotate(${rotationDeg}deg)` : undefined,
+              "--map-rot": `${isRotated ? rotationDeg : 0}deg`,
+            } as CSSProperties
           }
         >
           <APIProvider apiKey={props.apiKey}>
@@ -806,10 +979,9 @@ export default function MapView(props: Props) {
                   : { west: -74.26, south: 40.47, east: -73.7, north: 40.92 }
               }
               styles={dark ? DARK_MAP : LIGHT_MAP}
-              gestureHandling="greedy"
+              gestureHandling={touchDevice ? "none" : "greedy"}
               disableDefaultUI
               zoomControl={desktop}
-              rotateControl={true}
               clickableIcons={false}
               backgroundColor={dark ? "#1c1622" : "#f8f0e6"}
               onClick={(e) => {
@@ -821,8 +993,27 @@ export default function MapView(props: Props) {
                 props.onFocusRestroom?.(null);
               }}
             >
+              <MapRef target={mapRef} />
+              <CameraControl
+                you={props.you ?? null}
+                follow={!!props.follow}
+                centerToken={props.centerToken ?? 0}
+                padding={props.padding}
+                rotationDeg={rotationDeg}
+                lower={size.h * 0.08}
+              />
               <Overlays
                 {...props}
+                padding={
+                  touchDevice
+                    ? {
+                        top: props.padding.top + offY,
+                        bottom: props.padding.bottom + offY,
+                        left: props.padding.left + offX,
+                        right: props.padding.right + offX,
+                      }
+                    : props.padding
+                }
                 popup={popup}
                 setPopup={setPopup}
                 rrPopup={rrPopup}

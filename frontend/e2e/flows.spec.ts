@@ -326,7 +326,7 @@ test("real planner fits mobile and has no automatic location prompt @mobile", as
   });
 });
 
-test("Flushing example walk routes on real NYC data with Google Maps links @mobile", async ({
+test("Flushing example walk routes on real NYC data with in-app walk buttons @mobile", async ({
   page,
 }) => {
   await page.goto("/");
@@ -335,10 +335,8 @@ test("Flushing example walk routes on real NYC data with Google Maps links @mobi
       name: "Flushing–Main St station to Queens Public Library at Flushing",
     })
     .click();
-  // the lowered sheet already offers turn-by-turn directions to the first stop
-  await expect(
-    page.getByRole("link", { name: /^Start walking: directions to/ }),
-  ).toHaveAttribute("href", /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
+  // the lowered sheet already offers Start (guidance runs inside EzWay)
+  await expect(page.getByRole("button", { name: /^Start walking/ })).toBeVisible();
   await page.screenshot({
     path: `test-results/flushing-${test.info().project.name}.png`,
   });
@@ -347,11 +345,7 @@ test("Flushing example walk routes on real NYC data with Google Maps links @mobi
     "Within your selected limit",
   );
   await expect(page.getByTestId("demo-indicator")).toHaveCount(0);
-  const links = page.getByRole("link", { name: /^Walking directions to .* in Google Maps$/ });
-  await expect(links.first()).toHaveAttribute(
-    "href",
-    /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=40\.7\d+,-73\.8\d+&travelmode=walking$/,
-  );
+  const links = page.getByRole("button", { name: /^Walk to .* on map$/ });
   expect(await links.count()).toBe(
     await page.getByTestId("leg-list").locator("li").count(),
   );
@@ -368,4 +362,74 @@ test("home screen app manifest and icon are served", async ({ request }) => {
   expect((await manifest.json()).display).toBe("standalone");
   const icon = await request.get("/apple-touch-icon.png");
   expect(icon.headers()["content-type"]).toBe("image/png");
+});
+
+/** WCAG contrast ratio between two CSS colors, as the browser resolves them. */
+async function contrast(page: Page, fgSel: string, bgSel: string) {
+  return page.evaluate(
+    ([fgSel, bgSel]) => {
+      const rgb = (c: string) => (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const lum = ([r, g, b]: number[]) => {
+        const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+      };
+      const fg = getComputedStyle(document.querySelector(fgSel)!).color;
+      // the gradient's two ends are both checked
+      const bg = getComputedStyle(document.querySelector(bgSel)!).backgroundImage;
+      const ends = (bg.match(/rgb\([^)]*\)/g) ?? []).map(rgb);
+      const l1 = lum(rgb(fg));
+      return Math.min(...ends.map((e) => (Math.max(l1, lum(e)) + 0.05) / (Math.min(l1, lum(e)) + 0.05)));
+    },
+    [fgSel, bgSel],
+  );
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`Start button text is readable in ${scheme} mode @mobile`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.goto("/");
+    await page.getByRole("button", { name: /Flushing Town Hall to Queens/ }).click();
+    await expect(page.locator(".btn.start")).toBeVisible();
+    expect(await contrast(page, ".btn.start", ".btn.start")).toBeGreaterThanOrEqual(4.2);
+  });
+}
+
+test("walking shows where you are, faces your direction, and turns the map @mobile", async ({
+  page,
+  context,
+  isMobile,
+}) => {
+  test.skip(!isMobile, "phone only");
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 40.7639, longitude: -73.8301, accuracy: 20 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(page.getByTestId("you-are-here")).toHaveCount(0);
+  await page.getByRole("button", { name: /Flushing Town Hall to Queens/ }).click();
+  await page.getByRole("button", { name: /^Start walking/ }).click();
+  await expect(page.getByTestId("you-are-here")).toBeAttached();
+  await expect(page.locator(".you-dot")).toBeVisible();
+  // the phone is held facing east (90 degrees from north)
+  const face = (alpha: number) =>
+    page.evaluate((alpha) => {
+      window.dispatchEvent(
+        Object.assign(new Event("deviceorientationabsolute"), { alpha, beta: 0, gamma: 0, absolute: true }),
+      );
+    }, alpha);
+  await face(270);
+  await expect(page.getByTestId("you-are-here")).toHaveAttribute("data-heading", "90");
+  // the map turns so east is up
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-rotation", "-90");
+  // the banner above the map is readable in dark mode
+  expect(await contrast(page, ".walk-banner", ".walk-banner")).toBeGreaterThan(0);
+  const banner = await page.locator(".walk-banner").evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { color: s.color, background: s.backgroundColor };
+  });
+  expect(banner.color).not.toBe(banner.background);
+  expect(banner.color).not.toBe("rgb(255, 255, 255)");
+  await page.screenshot({ path: "test-results/walking-dark.png" });
+  // moving the map by hand pauses following, and the button brings you back
+  await page.getByTestId("locate-button").click();
+  await expect(page.locator(".you-dot")).toBeVisible();
 });
