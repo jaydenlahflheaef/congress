@@ -21,7 +21,7 @@ export function PrintSummary({
       aria-hidden="true"
       data-testid="print-summary"
     >
-      <h1>Rest Route: walking plan</h1>
+      <h1>EzWay: walking plan</h1>
       <p>
         <strong>From:</strong> {origin?.name ?? "start"} <br />
         <strong>To:</strong> {destination?.name ?? "destination"} <br />

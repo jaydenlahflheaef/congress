@@ -1,5 +1,6 @@
 import type { RouteResponse, Seat, Stop } from "../types";
 import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo } from "../format";
+import { Icon } from "./Icon";
 
 interface Props {
   result: RouteResponse | null;
@@ -233,7 +234,7 @@ export function ResultCard(props: Props) {
                         rel="noreferrer"
                         aria-label={`Walking directions to ${leg.to_label} in Google Maps`}
                       >
-                        Google Maps <span aria-hidden="true">↗</span>
+                        <Icon name="walk" size={16} /> Google Maps
                       </a>
                     )}
                   </li>

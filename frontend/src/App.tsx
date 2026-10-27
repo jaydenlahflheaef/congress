@@ -9,13 +9,14 @@ import {
 } from "react";
 import { fetchConfig, fetchSeats, getArea, prepareArea } from "./api/client";
 import { useRoutePlanner } from "./hooks/useRoutePlanner";
-import { useHeight, useMediaQuery } from "./hooks/useLayout";
+import { useBottomEdge, useMediaQuery } from "./hooks/useLayout";
 import { LimitControl } from "./components/LimitControl";
 import { PlaceSearch } from "./components/PlaceSearch";
 import { ResultCard, directionsUrl } from "./components/ResultCard";
 import { PrintSummary } from "./components/PrintSummary";
 import { HowItWorks } from "./components/HowItWorks";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { Icon } from "./components/Icon";
 import { Sheet, type Snap } from "./components/Sheet";
 import MapView from "./components/MapView";
 import { STATUS_HEADINGS, fmtM } from "./format";
@@ -31,30 +32,6 @@ import type {
 
 const PREF_KEY = "restroute.maxGap";
 const SIDE_PANEL_PX = 400;
-
-function Icon({ d }: { d: string }) {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d={d} />
-    </svg>
-  );
-}
-const ICONS = {
-  locate: "M12 2v3m0 14v3M2 12h3m14 0h3M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z",
-  pin: "M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Zm0-8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
-  swap: "M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3",
-  bench: "M6 9h12M6 13h12M4 17h16M7 17v4m10-4v4M7 9v8m10-8v8",
-};
 
 function IconButton({
   label,
@@ -115,8 +92,10 @@ export default function App() {
   const areaRequest = useRef<AbortController | null>(null);
   const areaRevision = useRef(0);
   const locationRevision = useRef(0);
-  const topRef = useRef<HTMLElement>(null);
-  const topH = useHeight(topRef, 130);
+  const [topEl, setTopEl] = useState<HTMLElement | null>(null);
+  // Where the floating search card ends, measured on screen so it includes
+  // the iPhone status-bar inset; the raised sheet stops below it.
+  const topBottom = useBottomEdge(topEl, 140);
   const mobile = useMediaQuery("(max-width: 820px)");
 
   useEffect(() => {
@@ -388,7 +367,7 @@ export default function App() {
       <main className="fatal">
         <h1>Let’s get you walking.</h1>
         <p role="alert">
-          Rest Route couldn’t connect to its server. Please try again.
+          EzWay couldn’t connect to its server. Please try again.
         </p>
         <button
           className="btn primary"
@@ -401,7 +380,7 @@ export default function App() {
   if (!config || !modeCfg)
     return (
       <main className="fatal" role="status">
-        <span className="spinner" /> Opening Rest Route…
+        <span className="spinner" /> Opening EzWay…
       </main>
     );
   const hasResult = !!result || planner.pending || !!planner.networkError;
@@ -415,7 +394,7 @@ export default function App() {
       ? directionsUrl(firstLegEnd[firstLegEnd.length - 1] as [number, number])
       : null;
   const padding = mobile
-    ? { top: topH + 24, right: 24, bottom: sheetH + 24, left: 24 }
+    ? { top: topBottom + 16, right: 24, bottom: sheetH + 24, left: 24 }
     : { top: 40, right: 40, bottom: 40, left: SIDE_PANEL_PX + 48 };
 
   const head = (
@@ -424,7 +403,7 @@ export default function App() {
         <div className="notice demo" data-testid="demo-indicator">
           <strong>You’re trying a fictional example.</strong>{" "}
           <button className="text-button" onClick={() => go("plan")}>
-            ← Plan a real walk
+            <Icon name="arrowLeft" size={16} /> Plan a real walk
           </button>
           <div className="field">
             <label htmlFor="trip-select">Example walks</label>
@@ -467,7 +446,7 @@ export default function App() {
               rel="noreferrer"
               aria-label={`Start walking: directions to ${result.legs[0]?.to_label ?? "the first stop"} in Google Maps`}
             >
-              Start ↗
+              <Icon name="walk" /> Start
             </a>
           )}
         </div>
@@ -491,7 +470,7 @@ export default function App() {
             </>
           ) : (
             <>
-              Find my walk <span aria-hidden="true">→</span>
+              Find my walk <Icon name="arrowRight" size={24} />
             </>
           )}
         </button>
@@ -524,10 +503,9 @@ export default function App() {
   );
 
   return (
-    <div className="app" style={{ "--top-h": `${topH}px` } as CSSProperties}>
+    <div className="app" style={{ "--top-bottom": `${topBottom}px` } as CSSProperties}>
       <MapView
         apiKey={config.google_maps?.api_key ?? null}
-        mapId={config.google_maps?.map_id ?? "DEMO_MAP_ID"}
         config={modeCfg}
         seats={seats}
         result={result}
@@ -537,6 +515,7 @@ export default function App() {
         hypothetical={hypo}
         onPick={onPick}
         onCancelPick={() => setArmed(null)}
+        onMapTap={() => setSnap("peek")}
         selectedLeg={selectedLeg}
         onSelectLeg={setSelectedLeg}
         showComparison={showComparison}
@@ -545,19 +524,19 @@ export default function App() {
         padding={padding}
       />
 
-      <header className="top no-print" ref={topRef}>
+      <header className="top no-print" ref={setTopEl}>
         <div className="search-card">
           <div className="brand-row">
             <button
               className="brand"
               onClick={() => go("plan")}
-              aria-label="Rest Route home"
+              aria-label="EzWay home"
             >
               <span className="logo" aria-hidden="true">
-                <Icon d={ICONS.bench} />
+                <Icon name="bench" />
               </span>
               <span>
-                rest route<span className="brand-dot">.</span>
+                Ez<span className="brand-way">Way</span>
               </span>
             </button>
             <ThemeToggle />
@@ -581,7 +560,7 @@ export default function App() {
               />
               {mode === "nearby" && (
                 <IconButton label="Use my location" onClick={useMyLocation}>
-                  <Icon d={ICONS.locate} />
+                  <Icon name="locate" />
                 </IconButton>
               )}
               <IconButton
@@ -589,7 +568,7 @@ export default function App() {
                 pressed={armed === "from"}
                 onClick={() => armMap("from")}
               >
-                <Icon d={ICONS.pin} />
+                <Icon name="pin" />
               </IconButton>
             </div>
             <div className="endpoint-row">
@@ -610,7 +589,7 @@ export default function App() {
                 pressed={armed === "to"}
                 onClick={() => armMap("to")}
               >
-                <Icon d={ICONS.pin} />
+                <Icon name="pin" />
               </IconButton>
               <IconButton
                 label="Swap start and destination"
@@ -621,7 +600,7 @@ export default function App() {
                   setDestinationRaw(origin);
                 }}
               >
-                <Icon d={ICONS.swap} />
+                <Icon name="swap" />
               </IconButton>
             </div>
           </div>
@@ -637,7 +616,7 @@ export default function App() {
         snap={snap}
         onSnap={setSnap}
         head={head}
-        topInset={topH + 10}
+        topInset={topBottom + 8}
         mobile={mobile}
         onHeight={setSheetH}
       >

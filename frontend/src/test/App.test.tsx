@@ -128,7 +128,7 @@ describe("App", () => {
       "fictional",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "← Plan a real walk" }),
+      screen.getByRole("button", { name: "Plan a real walk" }),
     );
     expect(screen.queryByTestId("demo-indicator")).toBeNull();
   });

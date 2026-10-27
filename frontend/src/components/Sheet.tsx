@@ -52,11 +52,12 @@ export function Sheet({ snap, onSnap, head, children, topInset, mobile, onHeight
 
   const toggle = () => onSnap(snap === "peek" ? "half" : "peek");
   const nearest = (h: number, velocity: number) => {
-    // A quick flick moves one step in its direction, like native sheets.
+    // A quick flick carries on to the next stop past where the finger let go.
     if (Math.abs(velocity) > 0.6) {
       const order: Snap[] = ["peek", "half", "full"];
-      const i = order.indexOf(snap) + (velocity > 0 ? 1 : -1);
-      return order[Math.max(0, Math.min(2, i))];
+      return velocity > 0
+        ? (order.find((s) => heights[s] > h + 1) ?? "full")
+        : ([...order].reverse().find((s) => heights[s] < h - 1) ?? "peek");
     }
     return (Object.keys(heights) as Snap[]).reduce((a, b) =>
       Math.abs(heights[a] - h) <= Math.abs(heights[b] - h) ? a : b,

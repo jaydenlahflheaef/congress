@@ -1,9 +1,10 @@
 :root {
-  /* Rest Route: friendly & colorful */
+  /* EzWay: friendly & colorful */
   --bg: #fff4e8;
   --bg-2: #ffe3d3;
   --card: #fffdf9;
-  --glass: rgba(255, 252, 247, 0.72);
+  /* Mostly opaque: the sheet carries the text, so the map must not show through it. */
+  --glass: rgba(255, 252, 247, 0.94);
   --ink: #2f2235;
   --muted: #6d5a6b;
   --line: #f1dccb;
@@ -39,7 +40,7 @@
   --bg: #1c1622;
   --bg-2: #2a1d2e;
   --card: #2a2230;
-  --glass: rgba(40, 31, 46, 0.7);
+  --glass: rgba(40, 31, 46, 0.94);
   --ink: #f7ecf2;
   --muted: #c4b2c2;
   --line: #43354a;
@@ -917,7 +918,7 @@ body {
 .map-banner {
   position: absolute;
   z-index: 25;
-  top: calc(var(--top-h) + 20px);
+  top: calc(var(--top-bottom) + 10px);
   left: 12px;
   right: 12px;
   margin: 0 auto;
@@ -946,7 +947,7 @@ body {
   height: 10px;
   border-radius: 50%;
   background: var(--card);
-  border: 2px solid #0f766e;
+  border: 2px solid var(--teal);
   box-shadow: 0 1px 3px #0003;
 }
 .seat-dot.ineligible {
@@ -1281,7 +1282,7 @@ body {
     width: 400px;
   }
   .sheet {
-    top: calc(var(--top-h) + 22px);
+    top: calc(var(--top-bottom) + 10px);
     left: 12px;
     bottom: 12px;
     right: auto;
@@ -1326,7 +1327,7 @@ a { color: var(--sky); }
 .endpoint-dot.destination { background: var(--sky) !important; border-color: var(--sky) !important; }
 .icon-button { border-radius: 50%; min-width: 48px; min-height: 48px; color: var(--sky); }
 .icon-button.armed { background: var(--sky); color: var(--on-color); }
-.sheet { background: var(--glass) !important; backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5); border-radius: 28px 28px 0 0; box-shadow: 0 -6px 30px #2f22351f; border-top: 1px solid color-mix(in srgb, var(--card) 70%, transparent); padding-bottom: env(safe-area-inset-bottom); }
+.sheet { background: var(--glass) !important; backdrop-filter: blur(22px) saturate(1.5); -webkit-backdrop-filter: blur(22px) saturate(1.5); border-radius: 28px 28px 0 0; box-shadow: 0 -6px 30px #2f22351f; border-top: 1px solid color-mix(in srgb, var(--card) 70%, transparent); }
 .sheet .card, .sheet .result, .sheet .notice { background: color-mix(in srgb, var(--card) 70%, transparent); }
 .sheet-handle::before { background: var(--gradient-brand); width: 48px; height: 5px; opacity: .8; }
 .limit-row input[type="range"] { accent-color: var(--primary); height: 44px; }
@@ -1348,8 +1349,22 @@ a { color: var(--sky); }
 .tag { background: var(--plum-soft); color: var(--plum); border-radius: 999px; }
 .map-missing { background: radial-gradient(circle at 20% 25%, var(--sun-soft), transparent 45%), radial-gradient(circle at 80% 60%, var(--sky-soft), transparent 50%), radial-gradient(circle at 40% 85%, var(--teal-soft), transparent 45%), var(--bg); color: var(--muted); font-size: 1rem; }
 .toast { background: var(--ink); color: var(--bg); }
-.top { padding-top: env(safe-area-inset-top); }
 .how { background: var(--card); border-radius: 28px; box-shadow: var(--shadow-soft); color: var(--ink); }
 .spinner { border-top-color: var(--primary); }
 .muted, .search-hint, .button-hint { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+/* EzWay's own markers on the map, centred on their coordinate */
+.html-marker { position: absolute; transform: translate(-50%, -50%); }
+.html-marker.clickable { cursor: pointer; }
+.brand-way { color: var(--primary); }
+.icon { flex: none; }
+.text-button .icon, .leg-nav .icon { vertical-align: -3px; margin-right: 4px; }
+.btn.start .icon { margin-right: 2px; }
+/* Map pins keep fixed, high-contrast colors in light and dark mode,
+   matching the A and B dots in the search card. */
+.map-pin { border-color: #fff; color: #fff; }
+.map-pin.endpoint { background: #d2462a; }
+.map-pin.endpoint.destination { background: #2f7fd0; }
+.map-pin.stop { background: #2e8b5b; }
+.map-pin.hyp, .map-pin.stop.hyp { background: #8a4fb8; }
+

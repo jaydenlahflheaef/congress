@@ -1,3 +1,5 @@
+import { Icon } from "./Icon";
+
 export function HowItWorks({
   onBack,
   onExample,
@@ -10,11 +12,11 @@ export function HowItWorks({
   return (
     <article className="how card">
       <button type="button" className="btn" onClick={onBack}>
-        ← Back to the planner
+        <Icon name="arrowLeft" size={16} /> Back to the planner
       </button>
-      <h1>How Rest Route works</h1>
+      <h1>How EzWay works</h1>
       <p>
-        Most map apps ask how fast you want to get somewhere. Rest Route asks
+        Most map apps ask how fast you want to get somewhere. EzWay asks
         how far you want to walk before you sit, and looks for the shortest walk
         that never goes farther than that between recorded seats.
       </p>
@@ -92,7 +94,7 @@ export function HowItWorks({
         Each stretch of your walk has a Google Maps button. It opens walking
         directions from where you are to the next rest stop, so you can follow
         turn-by-turn directions one stop at a time. Google Maps chooses its own
-        streets, which may differ slightly from the route Rest Route measured.
+        streets, which may differ slightly from the route EzWay measured.
       </p>
 
       <h2>Propose a bench</h2>
@@ -113,7 +115,7 @@ export function HowItWorks({
           preference, not a medical estimate.
         </li>
         <li>
-          Rest Route does not judge whether a route is safe or accessible, and
+          EzWay does not judge whether a route is safe or accessible, and
           it does not check curbs or slopes.
         </li>
         <li>
@@ -129,7 +131,7 @@ export function HowItWorks({
 
       <h2>Privacy</h2>
       <p>
-        Your start and destination are sent to the Rest Route server to compute
+        Your start and destination are sent to the EzWay server to compute
         the route and are not written to application logs. Walking areas are
         built from map data stored on the server, so trips are not sent to any
         map data service; built areas are reused for up to seven days. Place

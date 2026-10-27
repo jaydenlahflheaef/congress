@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Flushing pilot dataset for Rest Route.
+"""Build the Flushing pilot dataset for EzWay.
 
 Run once on a computer with internet access (from the repository root):
 
@@ -11,7 +11,7 @@ What it does
    routing area (service area + buffer) so trips near the edge can detour.
 2. Downloads the OpenStreetMap walking network for the routing area with
    OSMnx (stairs and private paths excluded), projects it to UTM 18N and
-   converts it to Rest Route segments.
+   converts it to EzWay segments.
 3. Downloads OSM seating features and NYC DOT "Seating Locations"
    (dataset esmy-s8q5) for the routing area.
 4. Applies field checks (data/field_checks.csv), eligibility rules,
@@ -69,7 +69,7 @@ from app.data.sources import (  # noqa: E402
 
 UTM_CRS = "EPSG:32618"
 MAX_ELIGIBLE_SEATS = 3000
-USER_AGENT = "RestRoute-student-project/0.1 (Congressional App Challenge; contact via repository)"
+USER_AGENT = "EzWay-student-project/0.1 (Congressional App Challenge; contact via repository)"
 
 OSM_SEAT_TAGS = {"amenity": ["bench", "shelter"], "highway": ["bus_stop"]}
 OSM_PLACE_TAGS = {

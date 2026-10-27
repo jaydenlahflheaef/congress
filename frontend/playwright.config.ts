@@ -16,8 +16,9 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       REST_ROUTE_PILOT_DIR: "/nonexistent-rest-route-pilot",
-      // Without a key the map shows a notice and map-only checks are skipped.
-      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? "",
+      // The tests strip the key from Google's requests, so the map always runs
+      // in Google's keyless development mode; any value makes the app show it.
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY || "test-placeholder",
     },
     timeout: 60_000,
   },

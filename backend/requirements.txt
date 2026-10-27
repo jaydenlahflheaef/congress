@@ -1,4 +1,4 @@
-# Rest Route backend. Tested with Python 3.13 on Linux (Oct 2026).
+# EzWay backend. Tested with Python 3.13 on Linux (Oct 2026).
 # Exact pins for reproducibility; install with:  pip install -r backend/requirements.txt
 fastapi==0.162.0
 uvicorn[standard]==0.54.0

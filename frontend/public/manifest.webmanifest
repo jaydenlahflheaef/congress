@@ -1,6 +1,6 @@
 {
-  "name": "Rest Route",
-  "short_name": "Rest Route",
+  "name": "EzWay",
+  "short_name": "EzWay",
   "description": "Plan walks in New York City with places to sit along the way.",
   "start_url": "/",
   "scope": "/",

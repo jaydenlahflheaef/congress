@@ -1,6 +1,6 @@
-# Running and hosting Rest Route
+# Running and hosting EzWay
 
-Rest Route runs as **one persistent Python process** that serves both the web page and the API. It reads its New York City map data from `data/nyc/` (committed), builds walking areas in a background worker, and needs outbound HTTPS only for place search (Photon). Keep a single worker/replica: area progress and the search rate limiter are held in process memory.
+EzWay runs as **one persistent Python process** that serves both the web page and the API. It reads its New York City map data from `data/nyc/` (committed), builds walking areas in a background worker, and needs outbound HTTPS only for place search (Photon). Keep a single worker/replica: area progress and the search rate limiter are held in process memory.
 
 ## Local app
 
@@ -33,7 +33,7 @@ Every push to the connected branch redeploys automatically.
 2. In Google Cloud (**APIs & Services → Credentials**), open the key and set **Application restrictions → Websites** to your Render address, e.g. `https://rest-route.onrender.com/*`. Keep **API restrictions** on Maps JavaScript API. A browser key is visible in the page by design; these restrictions stop other sites from using it.
 3. Optional: set a budget alert in Google Cloud Billing. Google's free monthly allowance covers a small project, but check Google's current pricing.
 
-Never commit the key. For local runs, put it in `.env` (ignored by Git) and load it into the environment before starting the server.
+Never commit the key. For local runs, put it in `.env` (ignored by Git) and load it into the environment before starting the server. A key locked to the Render address is refused on `http://127.0.0.1:8000`; EzWay then shows a notice instead of the map and keeps working. To see the map locally, add `http://127.0.0.1:8000/*` to the key's allowed websites.
 
 About the free plan:
 
@@ -47,11 +47,11 @@ To keep built areas across restarts on another host, mount persistent storage at
 
 ## Installing on an iPhone (Home Screen app)
 
-Rest Route is a web app that installs to the Home Screen. No App Store, Xcode or Apple developer account is needed.
+EzWay is a web app that installs to the Home Screen. No App Store, Xcode or Apple developer account is needed.
 
 1. On the iPhone, open the Render address in **Safari**.
 2. Tap **Share** (the square with an arrow), then **Add to Home Screen**, then **Add**.
-3. Open Rest Route from its icon. It runs full screen with its own icon. "Use my location" asks for permission the first time.
+3. Open EzWay from its icon. It runs full screen with its own icon. "Use my location" asks for permission the first time.
 
 On Android, open the address in Chrome and choose **Add to Home screen** or **Install app**.
 
@@ -64,7 +64,7 @@ A native App Store app would need Xcode, an Apple developer account for distribu
 - `REST_ROUTE_GEOCODER_URL`: Photon-compatible endpoint, default `https://photon.komoot.io/api/`. Explicit searches only, limited to New York City, cached, serialized and limited to one request per second in this process. Public Photon is for reasonable small-project use and has no availability guarantee: https://github.com/komoot/photon.
 - `REST_ROUTE_AREA_CACHE`: where built areas are saved (default `data/areas`).
 - `GOOGLE_MAPS_API_KEY`: the Google Maps browser key (Maps JavaScript API). Read by the server at runtime, so changing it needs no rebuild. Without it the app still plans routes, but shows a notice instead of the map.
-- `GOOGLE_MAPS_MAP_ID`: optional map style id from Google Cloud (Map Management). `DEMO_MAP_ID` is used otherwise.
+- The map's look (colors, and hiding Google's own place, shop and transit icons) is set in code (`LIGHT_MAP` and `DARK_MAP` in `frontend/src/components/MapView.tsx`), so no Google Cloud map style or Map ID is needed.
 
 ## Privacy notes
 

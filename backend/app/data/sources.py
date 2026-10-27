@@ -1,4 +1,4 @@
-"""Adapters from raw source records to Rest Route's own formats.
+"""Adapters from raw source records to EzWay's own formats.
 
 These are pure functions so they can be unit-tested without network access.
 The network fetching lives in scripts/prepare_pilot.py.

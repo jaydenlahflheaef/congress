@@ -157,7 +157,7 @@ export interface ModeConfig {
 export interface AppConfig {
   slider: { min_m: number; max_m: number; step_m: number; default_m: number };
   /** Browser key and map style id for the Google map (key is null when not configured). */
-  google_maps?: { api_key: string | null; map_id: string };
+  google_maps?: { api_key: string | null };
   modes: Record<Mode, ModeConfig>;
   default_mode: Mode;
   limitation_note: string;

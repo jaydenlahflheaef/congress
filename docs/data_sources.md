@@ -44,7 +44,7 @@ Two records merge only if they are within 5 m, have compatible types, attach to 
 
 ## The map
 
-The map picture is Google Maps (Maps JavaScript API), loaded with the browser key in `GOOGLE_MAPS_API_KEY` and shown with Google's own attribution and terms. Only the background map comes from Google: the walkways, benches and routes drawn on it are Rest Route's own OpenStreetMap and NYC DOT data. The synthetic demo hides the Google map under a plain background and draws its own fictional streets. The map does not work offline; the route list does.
+The map picture is Google Maps (Maps JavaScript API), loaded with the browser key in `GOOGLE_MAPS_API_KEY`, styled in EzWay's colors with Google's own place, shop and transit icons hidden, and shown with Google's attribution and terms. Only the background map comes from Google: the walkways, benches and routes drawn on it are EzWay's own OpenStreetMap and NYC DOT data. The synthetic demo hides the Google map under a plain background and draws its own fictional streets. The map does not work offline; the route list does.
 
 ## Code dependencies
 

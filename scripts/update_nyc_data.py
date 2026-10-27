@@ -51,7 +51,7 @@ from app.data.build import now_iso  # noqa: E402
 from app.data.nyc import COORD_SCALE, NYC_DIR, OSM_DIR, SEEDS_DIR, TILE_LAT, TILE_LON, tile_of  # noqa: E402
 from app.data.sources import NYC_DOT_METADATA_URL, NYC_DOT_SODA_URL, foot_directions, is_walkable_way  # noqa: E402
 
-USER_AGENT = "RestRoute-student-project/0.1 (Congressional App Challenge; contact via repository)"
+USER_AGENT = "EzWay-student-project/0.1 (Congressional App Challenge; contact via repository)"
 PBF_URL = "https://download.bbbike.org/osm/bbbike/NewYork/NewYork.osm.pbf"
 STEPS = ("boundary", "dot", "osm", "seed")
 # Only the fields dot_row_to_seat reads, to keep the committed file small.

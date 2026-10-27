@@ -43,7 +43,7 @@ COORD_SCALE = 1e6
 # sampled NYC areas the main network has thousands of nodes and every
 # separate piece has fewer than 25, so pieces under this size are dropped.
 MIN_PIECE_NODES = 50
-OUTSIDE_NYC = "Rest Route covers New York City. Choose a start and destination in the five boroughs."
+OUTSIDE_NYC = "EzWay covers New York City. Choose a start and destination in the five boroughs."
 
 
 class Region:

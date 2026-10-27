@@ -30,3 +30,24 @@ export function useHeight(ref: RefObject<HTMLElement | null>, fallback: number):
   }, [ref]);
   return height;
 }
+
+/**
+ * Distance from the top of the viewport to an element's bottom edge. Takes the
+ * element itself (from a callback ref), so it measures whenever it appears.
+ */
+export function useBottomEdge(el: HTMLElement | null, fallback: number): number {
+  const [bottom, setBottom] = useState(fallback);
+  useLayoutEffect(() => {
+    if (!el) return;
+    const update = () => setBottom(Math.round(el.getBoundingClientRect().bottom));
+    update();
+    window.addEventListener("resize", update);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    ro?.observe(el);
+    return () => {
+      window.removeEventListener("resize", update);
+      ro?.disconnect();
+    };
+  }, [el]);
+  return bottom;
+}

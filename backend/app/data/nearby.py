@@ -37,7 +37,7 @@ CACHE_TTL = 7 * 86400
 CACHE_VERSION = 'nearby-v3'
 KEY_PATTERN = re.compile(r'[0-9a-f]{24}')
 NOT_LOADED = 'This walking area is no longer loaded. Press Find my walk again.'
-USER_AGENT = 'RestRoute/0.2 (walking and recorded seating research project)'
+USER_AGENT = 'EzWay/0.2 (walking and recorded seating research project)'
 
 
 def area_for(origin, destination):

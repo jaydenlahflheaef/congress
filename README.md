@@ -1,10 +1,12 @@
-# Rest Route
+# EzWay
 
-Rest Route plans walks around places to sit. You choose a start, a destination and the **maximum distance you want to walk between rests**. It finds the shortest mapped walking route that reaches a recorded seat often enough. If no route can meet your limit, it shows the route whose longest stretch without a seat is as short as possible, says by how much it exceeds your limit, and highlights those stretches.
+(Formerly Rest Route. The code, Render service and data files still use `rest-route` in places.)
 
-Rest Route covers **New York City**. Each trip uses a small walking area cut from OpenStreetMap and NYC DOT data that is saved in this repository, so planning never waits on an outside map server. Endpoints can be up to 3 km apart; walking distance may be longer. Downtown Flushing is prepared ahead of time and opens instantly. The original fictional example is available under **How it works → Try an example walk**, and is never substituted for real data.
+EzWay plans walks around places to sit. You choose a start, a destination and the **maximum distance you want to walk between rests**. It finds the shortest mapped walking route that reaches a recorded seat often enough. If no route can meet your limit, it shows the route whose longest stretch without a seat is as short as possible, says by how much it exceeds your limit, and highlights those stretches.
 
-The interface works like Google Maps: a full-screen Google map, a search card for the start and destination, and a sheet at the bottom (a side panel on wide screens) with the rest-distance slider and the route. On a phone, Rest Route installs as a Home Screen app (Safari → Share → Add to Home Screen). **Start** and the button on each stretch open Google Maps turn-by-turn walking directions to the next rest stop.
+EzWay covers **New York City**. Each trip uses a small walking area cut from OpenStreetMap and NYC DOT data that is saved in this repository, so planning never waits on an outside map server. Endpoints can be up to 3 km apart; walking distance may be longer. Downtown Flushing is prepared ahead of time and opens instantly. The original fictional example is available under **How it works → Try an example walk**, and is never substituted for real data.
+
+The interface works like Google Maps: a full-screen Google map, a search card for the start and destination, and a sheet at the bottom (a side panel on wide screens) with the rest-distance slider and the route. On a phone, EzWay installs as a Home Screen app (Safari → Share → Add to Home Screen). **Start** and the button on each stretch open Google Maps turn-by-turn walking directions to the next rest stop.
 
 A rest resets the distance count in the plan. That is a planning preference, not a medical estimate. Results are limited to mapped paths and recorded seats.
 
@@ -108,7 +110,7 @@ python scripts/benchmark.py
 ### Results after the NYC update (2026-10-26, macOS, Python 3.14)
 
 * Backend `pytest`: **756 passed** (adds tile-based area building, NYC-only trips and search, the prepared Flushing area, reloading evicted areas).
-* Frontend `vitest`: **28 passed**. Playwright (desktop + Pixel 7, with the real Google map): **18 passed, 1 skipped**, including the Flushing example walk on the real committed data, placing a hypothetical bench by tapping the Google map, the bottom sheet, and the Home Screen manifest. Run it with the key exported: `set -a; . ../.env; set +a; npx playwright test`.
+* Frontend `vitest`: **28 passed**. Playwright (desktop + Pixel 7, with the real Google map): **18 passed, 1 skipped**, including the Flushing example walk on the real committed data, placing a hypothetical bench by tapping the Google map, the bottom sheet, and the Home Screen manifest. The browser tests remove the key from Google's requests, so the map runs in Google's keyless development mode (darkened, with a watermark, and without EzWay's map style); no key is needed to run them.
 * The server also ran from a clean Python 3.13 environment with only `backend/requirements-server.txt`: peak memory about 320 MB with Flushing plus four built areas.
 
 ### Results from the build session (2026-10-26, 2-vCPU Linux cloud workspace)

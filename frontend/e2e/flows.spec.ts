@@ -1,15 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// The map is Google Maps. Route lines are drawn on a canvas, so map state is
-// read from the map element's data attributes, and the test hook below lets a
-// test turn coordinates into a screen position.
-const hasKey = !!process.env.GOOGLE_MAPS_API_KEY;
-
+// The map is Google Maps, run in Google's keyless development mode: the key is
+// stripped from Google's requests, so tests work on any machine and do not use
+// the real key (which is locked to the deployed site). Route lines are drawn on
+// a canvas, so map state is read from the map element's data attributes, and
+// the test hook below turns coordinates into screen positions.
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__REST_ROUTE_TEST__ = true;
   });
+  await page.route(/maps\.googleapis\.com/, (r) => {
+    const url = new URL(r.request().url());
+    url.searchParams.delete("key");
+    return r.continue({ url: url.toString() });
+  });
 });
+
+/** Development mode shows a notice over the map; close it before tapping the map. */
+async function dismissDevNotice(page: Page) {
+  const ok = page.locator(".dismissButton");
+  if (await ok.count()) await ok.first().click().catch(() => undefined);
+}
 
 async function setLimit(page: Page, m: number) {
   const num = page.getByLabel("Maximum distance between rests in meters");
@@ -88,7 +99,7 @@ test("feasible flow: slider changes the route from real results", async ({
   // the map draws the same route: nine legs, eight numbered seats
   await expect(page.getByTestId("route-map")).toHaveAttribute("data-legs", "9");
   await expect(page.getByTestId("route-map")).toHaveAttribute("data-over-legs", "0");
-  if (hasKey) await expect(page.locator(".map-pin.stop")).toHaveCount(8);
+  await expect(page.locator(".map-pin.stop")).toHaveCount(8);
 });
 
 test("limit-unmet flow: fallback shows smallest achievable gap and amber legs", async ({
@@ -162,9 +173,27 @@ test("if Google Maps cannot load, the route list still works", async ({
 }) => {
   await page.route(/maps\.googleapis\.com/, (r) => r.abort());
   await pickDemoTrip(page);
-  if (hasKey) await expect(page.getByTestId("map-error")).toBeVisible();
+  await expect(page.getByTestId("map-error")).toBeVisible();
   await expect(page.getByTestId("leg-list")).toBeVisible();
   await expect(page.getByTestId("metric-total")).toHaveText("622 m");
+});
+
+test("if Google refuses the key, the rest of the app keeps working @mobile", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: /Flushing Town Hall to Queens/ })
+    .click();
+  await expect(page.getByTestId("route-map")).not.toHaveAttribute("data-legs", "0");
+  // Google calls this when a key is rejected (e.g. a site not on its allow list).
+  await page.evaluate(() =>
+    (window as unknown as { gm_authFailure?: () => void }).gm_authFailure?.(),
+  );
+  await expect(page.getByTestId("map-error")).toBeVisible();
+  await expandSheet(page);
+  await expect(page.getByTestId("leg-list")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "From", exact: true })).toBeVisible();
 });
 
 test("excluding a seat recalculates", async ({ page }) => {
@@ -218,7 +247,6 @@ test("mobile: the bottom sheet lowers and raises @mobile", async ({
 test("propose a hypothetical bench closes the gap at 100 m", async ({
   page,
 }) => {
-  test.skip(!hasKey, "needs the Google map to tap on");
   await pickDemoTrip(page);
   const unmet = page.waitForResponse(
     (r) =>
@@ -241,6 +269,7 @@ test("propose a hypothetical bench closes the gap at 100 m", async ({
     .getByRole("button", { name: "Place a hypothetical bench" })
     .click();
   await page.waitForTimeout(800); // let the map settle after the sheet moves
+  await dismissDevNotice(page);
   const pt = await screenPoint(page, lat, lng);
   await page.mouse.click(pt.x, pt.y);
   await expandSheet(page);

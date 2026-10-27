@@ -63,7 +63,7 @@ class State:
 
 def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, serve_frontend: bool = True) -> FastAPI:
     pilot_dir = Path(pilot_dir or os.environ.get("REST_ROUTE_PILOT_DIR", DEFAULT_PILOT_DIR))
-    app = FastAPI(title="Rest Route API", version="0.1.0")
+    app = FastAPI(title="EzWay API", version="0.1.0")
     state = State(pilot_dir, load_live_data)
     app.state.rr = state
 
@@ -108,10 +108,7 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
             "limitation_note": LIMITATION_NOTE,
             # A browser key: it is visible in the page by design, so restrict it to the
             # app's web address in Google Cloud. Set on the host, never committed.
-            "google_maps": {
-                "api_key": os.environ.get("GOOGLE_MAPS_API_KEY") or None,
-                "map_id": os.environ.get("GOOGLE_MAPS_MAP_ID") or "DEMO_MAP_ID",
-            },
+            "google_maps": {"api_key": os.environ.get("GOOGLE_MAPS_API_KEY") or None},
         }
 
     @app.post("/api/areas")
