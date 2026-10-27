@@ -1713,3 +1713,10 @@ img.logo { background: none !important; border-radius: 22% !important; object-fi
 .fatal[role="status"] { display: grid; justify-items: center; gap: 14px; text-align: center; }
 .logo-splash { border-radius: 22%; box-shadow: var(--shadow-soft); }
 
+
+/* Distance box: room around "300 m" so the unit does not touch the box edge */
+.limit-number { flex: none; padding: 4px 18px 4px 14px; gap: 6px; justify-content: center; border-bottom: 0; }
+.limit-number input { width: 3.4ch; padding: 4px 0; }
+.limit-row { gap: 12px; }
+.limit-number { padding-left: 8px; }
+.limit-number input { width: 3.1ch; }
