@@ -13,6 +13,12 @@ data/nyc/boundary.json        New York City's outline (OpenStreetMap, via
 data/nyc/dot_seating.json.gz  Every record of NYC DOT "Seating Locations"
                               (dataset esmy-s8q5), with the retrieval time and
                               the dataset's own last-updated time.
+data/nyc/subway_elevators.json.gz
+                              MTA subway stations (39hk-dx4f), elevator inventory
+                              (94fv-bak7), monthly elevator availability (rc78-7x78),
+                              and an MTA elevator outage snapshot (nyct_ene.json).
+data/nyc/public_restrooms.json.gz
+                              NYC Open Data Public Restrooms (dataset i7jb-7jku).
 data/nyc/osm/                 Walkways and seating features from an
                               OpenStreetMap extract of New York, cut into
                               tiles (see backend/app/data/nyc.py), plus
@@ -28,7 +34,7 @@ data/nyc/raw/, which Git ignores. Use --pbf to read a file you already have.
 Options
 -------
 --pbf FILE        use an existing New York .osm.pbf extract
---only STEPS      comma-separated subset of: boundary,dot,osm,seed
+--only STEPS      comma-separated subset of: boundary,dot,subway,restrooms,osm,seed
 """
 
 from __future__ import annotations
@@ -53,7 +59,7 @@ from app.data.sources import NYC_DOT_METADATA_URL, NYC_DOT_SODA_URL, foot_direct
 
 USER_AGENT = "EzWay-student-project/0.1 (Congressional App Challenge; contact via repository)"
 PBF_URL = "https://download.bbbike.org/osm/bbbike/NewYork/NewYork.osm.pbf"
-STEPS = ("boundary", "dot", "osm", "seed")
+STEPS = ("boundary", "dot", "subway", "restrooms", "osm", "seed")
 # Only the fields dot_row_to_seat reads, to keep the committed file small.
 DOT_FIELDS = [
     "siteid", "asset_subtype", "latitude", "longitude", "nearest_add",
@@ -119,6 +125,64 @@ def write_dot_seating() -> None:
     }
     write_gz(NYC_DIR / "dot_seating.json.gz", out)
     log(f"NYC DOT seating: {len(rows)} records, dataset updated {out['source_updated']}")
+
+
+def write_subway_elevators() -> None:
+    import requests
+
+    headers = {"User-Agent": USER_AGENT}
+    log("downloading MTA Subway Stations, Elevator Inventory, Availability & Outages…")
+    stations = requests.get("https://data.ny.gov/resource/39hk-dx4f.json", params={"$limit": "1000"}, headers=headers, timeout=60).json()
+    elevators = requests.get(
+        "https://data.ny.gov/resource/94fv-bak7.json",
+        params={"$where": "elevator_or_escalator='Elevator'", "$limit": "2000"},
+        headers=headers,
+        timeout=60,
+    ).json()
+    q_avail = (
+        "https://data.ny.gov/resource/rc78-7x78.json?"
+        "$where=equipment_type='Elevator' AND month >= '2026-01-01T00:00:00'"
+        "&$select=equipment_code,station_mrn,station_complex_mrn,station_complex_name,"
+        "sum(total_outages) as total_outages,sum(unscheduled_outages) as unscheduled_outages,"
+        "sum(_24_hour_hours_available) as available_hours,sum(_24_hour_total_hours) as total_hours,"
+        "count(*) as months,max(month) as latest_month"
+        "&$group=equipment_code,station_mrn,station_complex_mrn,station_complex_name"
+        "&$limit=5000"
+    )
+    avail = requests.get(q_avail, headers=headers, timeout=60).json()
+    outages = requests.get("https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fnyct_ene.json", headers=headers, timeout=60).json()
+    out = {
+        "retrieved": now_iso(),
+        "sources": {
+            "stations": "https://data.ny.gov/Transportation/MTA-Subway-Stations/39hk-dx4f",
+            "elevators": "https://data.ny.gov/Transportation/MTA-Subway-Elevator-and-Escalator-Asset-Inventory/94fv-bak7",
+            "availability": "https://data.ny.gov/Transportation/MTA-NYCT-Subway-Elevator-and-Escalator-Availabilit/rc78-7x78",
+            "outages": "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fnyct_ene.json",
+        },
+        "stations": stations,
+        "elevators": elevators,
+        "availability_2026": avail,
+        "outages_snapshot": outages,
+    }
+    write_gz(NYC_DIR / "subway_elevators.json.gz", out)
+    log(f"MTA subway: {len(stations)} stations, {len(elevators)} elevators, {len(avail)} availability records, {len(outages)} outage entries")
+
+
+def write_public_restrooms() -> None:
+    import requests
+
+    headers = {"User-Agent": USER_AGENT}
+    log("downloading NYC Open Data Public Restrooms (i7jb-7jku)…")
+    r = requests.get("https://data.cityofnewyork.us/resource/i7jb-7jku.json", params={"$limit": "5000"}, headers=headers, timeout=60)
+    r.raise_for_status()
+    rows = r.json()
+    out = {
+        "retrieved": now_iso(),
+        "source": "https://data.cityofnewyork.us/City-Government/Public-Restrooms/i7jb-7jku",
+        "rows": rows,
+    }
+    write_gz(NYC_DIR / "public_restrooms.json.gz", out)
+    log(f"NYC public restrooms: {len(rows)} records")
 
 
 def fetch_pbf() -> tuple[Path, str | None]:
@@ -262,6 +326,10 @@ def main() -> int:
         write_boundary()
     if "dot" in steps:
         write_dot_seating()
+    if "subway" in steps:
+        write_subway_elevators()
+    if "restrooms" in steps:
+        write_public_restrooms()
     if "osm" in steps:
         pbf, modified = (args.pbf, None) if args.pbf else fetch_pbf()
         write_osm_tiles(pbf, extract_date(pbf, modified))

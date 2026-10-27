@@ -173,9 +173,20 @@ class NearbyAreas:
             return dict(self.jobs[key])
 
     def _ready(self, key, planner):
+        from .transit_and_restrooms import restrooms_within_polygon
         ds = planner.ds
-        return {'status': 'ready', 'dataset_id': key, 'message': 'Walking area ready.', 'config': ds.public_config(),
-                'seats': [s.to_public() for s in ds.seats.values() if s.routing_eligible]}
+        return {
+            'status': 'ready',
+            'dataset_id': key,
+            'message': 'Walking area ready.',
+            'config': ds.public_config(),
+            'seats': [
+                s.to_public()
+                for s in ds.seats.values()
+                if s.routing_eligible or s.type in ('leaning_bar', 'shelter_unknown_seating')
+            ],
+            'restrooms': restrooms_within_polygon(Polygon(ds.routing_polygon_lonlat), mode='nearby'),
+        }
 
     def status(self, key):
         planner = self.get_planner(key)

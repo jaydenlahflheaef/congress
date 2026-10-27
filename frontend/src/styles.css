@@ -1368,3 +1368,176 @@ a { color: var(--sky); }
 .map-pin.stop { background: #2e8b5b; }
 .map-pin.hyp, .map-pin.stop.hyp { background: #8a4fb8; }
 
+/* Subway station elevator alerts & reliability + public restrooms */
+.section-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 1rem 0 0.5rem;
+}
+.section-head-row h3 {
+  margin: 0;
+}
+.station-alerts {
+  margin: 14px 0 18px;
+}
+.station-card {
+  background: var(--sky-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.station-card.has-outage {
+  background: var(--amber-soft);
+  border-color: var(--sun);
+}
+.station-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.station-card-head h4 {
+  margin: 2px 0 4px;
+  font-family: var(--font-head);
+  font-size: 0.96rem;
+}
+.station-role {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+}
+.station-pill {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--card);
+}
+.station-pill.teal {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.station-pill.amber {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.station-pill.gray {
+  background: var(--line);
+  color: var(--muted);
+}
+.station-summary-line {
+  margin: 4px 0 8px !important;
+}
+.elevator-list,
+.restroom-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  gap: 8px;
+}
+.elevator-item,
+.restroom-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+}
+.elevator-item.outage {
+  border-left: 4px solid var(--primary);
+}
+.elevator-item.ok {
+  border-left: 4px solid var(--teal);
+}
+.elevator-head,
+.restroom-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  justify-content: space-between;
+}
+.elevator-head {
+  justify-content: flex-start;
+}
+.elevator-badge {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--teal);
+  color: #fff;
+}
+.elevator-badge.outage {
+  background: var(--primary);
+}
+.elevator-alert-box {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--amber-soft);
+  font-size: 0.76rem;
+}
+.elevator-reliability {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted);
+}
+.station-source-note {
+  margin: 6px 0 0 !important;
+  font-size: 0.68rem !important;
+}
+.restrooms-section {
+  border-top: 1px solid var(--line);
+  margin: 14px 0;
+  padding-top: 10px;
+}
+.restrooms-section > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 6px 0;
+}
+.restroom-meta {
+  margin: 4px 0 8px;
+}
+.restroom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.restroom-pin {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font: 700 10px "Atkinson Hyperlegible", sans-serif;
+  background: #2f7fd0;
+  color: #fff;
+  border: 1.5px solid #fff;
+  box-shadow: 0 2px 5px #0003;
+}
+.restroom-pin.closed {
+  background: #8f7f8c;
+}
+.dot.ineligible {
+  border: 1.5px dashed var(--muted);
+  background: var(--line);
+}
+.dot.restroom {
+  border-color: #2f7fd0;
+  background: #2f7fd0;
+}
+
+

@@ -7,7 +7,13 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { fetchConfig, fetchSeats, getArea, prepareArea } from "./api/client";
+import {
+  fetchConfig,
+  fetchSeats,
+  getArea,
+  prepareArea,
+  refreshElevators,
+} from "./api/client";
 import { useRoutePlanner } from "./hooks/useRoutePlanner";
 import { useBottomEdge, useMediaQuery } from "./hooks/useLayout";
 import { LimitControl } from "./components/LimitControl";
@@ -26,6 +32,7 @@ import type {
   Mode,
   ModeConfig,
   NamedPoint,
+  PublicRestroom,
   Seat,
   Trip,
 } from "./types";
@@ -75,7 +82,9 @@ export default function App() {
   const [hypo, setHypo] = useState<LatLon[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [showRestrooms, setShowRestrooms] = useState(false);
   const [seats, setSeats] = useState<Seat[]>([]);
+  const [restrooms, setRestrooms] = useState<PublicRestroom[]>([]);
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [page, setPage] = useState<"plan" | "how">(
@@ -201,6 +210,7 @@ export default function App() {
     setOriginRaw(null);
     setDestinationRaw(null);
     setSeats([]);
+    setRestrooms([]);
     setDatasetId(undefined);
     setAreaConfig(null);
     setSnap("half");
@@ -335,6 +345,7 @@ export default function App() {
       setDatasetId(area.dataset_id);
       setAreaConfig(area.config);
       setSeats(area.seats ?? []);
+      setRestrooms(area.restrooms ?? []);
       setEnabled(true);
       // Show the route on the map; the summary and slider stay in view.
       setSnap("peek");
@@ -353,6 +364,15 @@ export default function App() {
     setDestinationRaw(trip.to);
     if (trip.suggested_limits_m.length) setMaxGap(trip.suggested_limits_m[0]);
     void findRoute(trip.from, trip.to);
+  };
+  const onRefreshElevators = async () => {
+    if (!origin || !destination) return;
+    try {
+      await refreshElevators(origin, destination, mode);
+      planner.refresh();
+    } catch {
+      /* keep existing snapshot if refresh fails */
+    }
   };
   const examples = mode === "nearby" ? (config?.modes.nearby?.trips ?? []) : [];
   const seatsById = useMemo(
@@ -508,6 +528,8 @@ export default function App() {
         apiKey={config.google_maps?.api_key ?? null}
         config={modeCfg}
         seats={seats}
+        restrooms={restrooms}
+        showRestrooms={showRestrooms}
         result={result}
         origin={origin}
         destination={destination}
@@ -634,6 +656,13 @@ export default function App() {
             onRestore={(id) => setExcluded((x) => x.filter((v) => v !== id))}
             onPrint={() => window.print()}
             limitationNote={config.limitation_note}
+            onRefreshElevators={onRefreshElevators}
+            onUseAsDestination={(pt) => {
+              if (!origin) return;
+              invalidate();
+              setDestinationRaw(pt);
+              void findRoute(origin, pt);
+            }}
           />
         )}
         {hasRoute && (
@@ -652,6 +681,14 @@ export default function App() {
             <span>
               <i className="dot eligible" /> seat on record
             </span>
+            <span>
+              <i className="dot ineligible" /> leaning bar / shelter
+            </span>
+            {showRestrooms && (
+              <span>
+                <i className="dot restroom" /> public restroom
+              </span>
+            )}
           </p>
         )}
         {areaConfig && mode === "nearby" && (
@@ -694,6 +731,14 @@ export default function App() {
                 onChange={(e) => setShowComparison(e.target.checked)}
               />{" "}
               Compare with the shortest walk
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={showRestrooms}
+                onChange={(e) => setShowRestrooms(e.target.checked)}
+              />{" "}
+              Show public restrooms on map
             </label>
           </div>
           <details className="propose" data-testid="propose-bench">

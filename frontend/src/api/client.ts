@@ -6,6 +6,7 @@ import type {
   Place,
   RouteResponse,
   Seat,
+  StationElevatorAlert,
 } from "../types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -86,6 +87,27 @@ export async function fetchRoute(
   if (!res.ok)
     throw new ApiError(`Route request failed (${res.status})`, res.status);
   return (await res.json()) as RouteResponse;
+}
+
+export async function refreshElevators(
+  origin: LatLon,
+  destination: LatLon,
+  mode: Mode = "nearby",
+  signal?: AbortSignal,
+): Promise<{ status: string; station_elevators: StationElevatorAlert[] }> {
+  const q = new URLSearchParams({ mode });
+  const res = await fetch(`${BASE}/api/elevators/refresh?${q}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ origin, destination }),
+    signal,
+  });
+  if (!res.ok)
+    throw new ApiError(`Elevator refresh failed (${res.status})`, res.status);
+  return (await res.json()) as {
+    status: string;
+    station_elevators: StationElevatorAlert[];
+  };
 }
 
 export async function prepareArea(

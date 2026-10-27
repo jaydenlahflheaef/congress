@@ -138,3 +138,89 @@ describe('hypothetical bench comparison', () => {
     expect(screen.queryByRole('button', { name: 'Exclude this seat' })).toBeNull();
   });
 });
+
+describe('subway elevator alerts and nearby restrooms', () => {
+  it('renders station elevator outage alerts, monthly reliability, and nearby restrooms', async () => {
+    const base = okRoute(150, ['s1'], 300);
+    const onUseAsDestination = vi.fn();
+    const r: RouteResponse = {
+      ...base,
+      station_elevators: [
+        {
+          endpoint: 'start',
+          station_id: '447',
+          complex_id: '447',
+          station_name: 'Flushing-Main St',
+          routes: '7',
+          distance_m: 45,
+          lat: 40.7596,
+          lon: -73.83,
+          ada_status: 'ADA accessible',
+          elevator_count: 1,
+          active_outage_count: 1,
+          station_availability_pct: 98.7,
+          station_total_outages_2026: 3,
+          outage_source: 'snapshot',
+          outage_updated_at: '2026-10-26T00:00:00Z',
+          elevators: [
+            {
+              equipment_code: 'EL414',
+              description: 'East of Main St & Roosevelt Ave to Manhattan-bound platform.',
+              street_access: true,
+              ada_compliant: true,
+              status: 'outage',
+              service_status: 'Out of service',
+              alternative_route: 'Use LIRR or Q66 bus.',
+              active_outage: {
+                equipment_code: 'EL414',
+                reason: 'Capital Replacement',
+                outage_date: '02/02/2026',
+                estimated_return: '10/31/2026',
+                is_upcoming: false,
+                is_maintenance: false,
+              },
+              reliability: {
+                period: 'Jan–Sep 2026',
+                months_recorded: 9,
+                availability_pct: 98.7,
+                total_outages: 3,
+                unscheduled_outages: 2,
+              },
+            },
+          ],
+        },
+      ],
+      nearby_restrooms: [
+        {
+          id: 'rr-1',
+          name: 'Flushing Library, QPL',
+          lat: 40.7578,
+          lon: -73.8288,
+          location_type: 'Library',
+          status: 'Operational',
+          operational: true,
+          accessibility: 'Fully Accessible',
+          hours: '10:00 am - 8:00 pm',
+          distance_from_route_m: 12,
+        },
+      ],
+    };
+    renderCard(r, { onUseAsDestination });
+    const elBox = screen.getByTestId('station-elevators');
+    expect(elBox).toHaveTextContent('Flushing-Main St (7)');
+    expect(elBox).toHaveTextContent('1 of 1 elevator out');
+    expect(elBox).toHaveTextContent('EL414');
+    expect(elBox).toHaveTextContent('Capital Replacement');
+    expect(elBox).toHaveTextContent('98.7% monthly availability');
+
+    const rrBox = screen.getByTestId('nearby-restrooms');
+    expect(rrBox).toHaveTextContent('Public restrooms near this walk (1)');
+    expect(rrBox).toHaveTextContent('Flushing Library, QPL');
+    await userEvent.click(screen.getByRole('button', { name: 'Plan walk to this restroom' }));
+    expect(onUseAsDestination).toHaveBeenCalledWith({
+      name: 'Flushing Library, QPL (Restroom)',
+      lat: 40.7578,
+      lon: -73.8288,
+    });
+  });
+});

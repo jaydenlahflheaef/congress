@@ -35,6 +35,31 @@ export function PrintSummary({
         <strong>Longest leg:</strong> {fmtM(result.longest_gap_m)} ·{" "}
         <strong>Planned rests:</strong> {result.rest_count}
       </p>
+      {result.station_elevators && result.station_elevators.length > 0 && (
+        <>
+          <h2>Subway station elevator status</h2>
+          <ul>
+            {result.station_elevators.map((st) => (
+              <li key={`${st.endpoint}-${st.station_id}`}>
+                <strong>
+                  {st.station_name}
+                  {st.routes ? ` (${st.routes})` : ""}
+                </strong>{" "}
+                — near {st.endpoint} ({fmtM(st.distance_m)}):{" "}
+                {st.elevator_count === 0
+                  ? st.ada_status
+                  : st.active_outage_count > 0
+                    ? `${st.active_outage_count} of ${st.elevator_count} elevator(s) reported out of service`
+                    : `${st.elevator_count} elevator(s) in service`}
+                {st.station_availability_pct !== null &&
+                st.station_availability_pct !== undefined
+                  ? `; 2026 monthly availability ${st.station_availability_pct.toFixed(1)}%`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <table>
         <thead>
           <tr>

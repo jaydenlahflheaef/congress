@@ -74,6 +74,81 @@ export interface HypotheticalInfo {
   note: string;
 }
 
+export interface ElevatorOutage {
+  equipment_code: string;
+  station?: string | null;
+  trains?: string | null;
+  serving?: string | null;
+  outage_date?: string | null;
+  estimated_return?: string | null;
+  reason?: string | null;
+  is_upcoming: boolean;
+  is_maintenance: boolean;
+}
+
+export interface ElevatorReliability {
+  period: string;
+  months_recorded: number | null;
+  availability_pct: number | null;
+  total_outages: number | null;
+  unscheduled_outages: number | null;
+}
+
+export interface StationElevator {
+  equipment_code: string;
+  description: string;
+  street_access: boolean;
+  ada_compliant: boolean;
+  status: "in_service" | "outage";
+  service_status: string;
+  alternative_route?: string | null;
+  active_outage?: ElevatorOutage | null;
+  upcoming_outages?: ElevatorOutage[];
+  reliability?: ElevatorReliability | null;
+}
+
+export interface StationElevatorAlert {
+  endpoint: "start" | "destination";
+  station_id: string;
+  complex_id: string;
+  station_name: string;
+  routes: string;
+  distance_m: number;
+  lat: number;
+  lon: number;
+  ada_status: string;
+  ada_notes?: string | null;
+  elevator_count: number;
+  active_outage_count: number;
+  station_availability_pct?: number | null;
+  station_total_outages_2026?: number | null;
+  elevators: StationElevator[];
+  outage_source: string;
+  outage_updated_at?: string | null;
+  source_url?: string | null;
+}
+
+export interface PublicRestroom {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  location_type: string;
+  operator?: string | null;
+  status: string;
+  operational: boolean;
+  open_season?: string | null;
+  hours?: string | null;
+  accessibility: string;
+  restroom_type?: string | null;
+  changing_stations?: string | null;
+  notes?: string | null;
+  website?: string | null;
+  source_url?: string | null;
+  retrieved_at?: string | null;
+  distance_from_route_m?: number;
+}
+
 export interface Leg {
   index: number;
   from_id: string;
@@ -125,6 +200,8 @@ export interface RouteResponse {
   limitation_note: string | null;
   timing_ms?: number | null;
   hypothetical?: HypotheticalInfo | null;
+  station_elevators?: StationElevatorAlert[];
+  nearby_restrooms?: PublicRestroom[];
 }
 
 export interface Trip {
@@ -178,4 +255,5 @@ export interface AreaResponse {
   message: string;
   config?: ModeConfig;
   seats?: Seat[];
+  restrooms?: PublicRestroom[];
 }

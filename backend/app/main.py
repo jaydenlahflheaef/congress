@@ -25,6 +25,12 @@ from .data.dataset import DEFAULT_PILOT_DIR, REPO_ROOT, DataUnavailable, Dataset
 from .data.nearby import NOT_LOADED, NearbyAreas, load_seeds
 from .data.nyc import nyc_region
 from .data.geocoder import search_places
+from .data.transit_and_restrooms import (
+    get_elevator_outages,
+    restrooms_near_route,
+    restrooms_within_polygon,
+    stations_near_endpoints,
+)
 from .models.schemas import (
     AreaRequest,
     SLIDER_DEFAULT_M,
@@ -129,6 +135,18 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
         except Exception:
             return JSONResponse(status_code=503, content={"detail": "Place search is unavailable. Try again or choose a point on the map."})
 
+    @app.post("/api/elevators/refresh")
+    def refresh_elevators(origin: LatLon, destination: LatLon, mode: str = "nearby"):
+        """Check live MTA elevator outage feed for stations near the trip endpoints."""
+        get_elevator_outages(allow_live=True)
+        stations = stations_near_endpoints(
+            (origin.lon, origin.lat),
+            (destination.lon, destination.lat),
+            mode=mode,
+            allow_live=False,
+        )
+        return {"status": "ok", "station_elevators": stations}
+
     @app.get("/api/seats")
     def seats(
         bbox: str = Query(..., description="minLon,minLat,maxLon,maxLat"),
@@ -188,6 +206,22 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
                 request_id=rid,
                 hypothetical=[(h.lon, h.lat) for h in req.hypothetical_seats],
             )
+            if res.get("status") in ("ok", "limit_unmet"):
+                res["station_elevators"] = stations_near_endpoints(
+                    (req.origin.lon, req.origin.lat),
+                    (req.destination.lon, req.destination.lat),
+                    mode=req.dataset_mode,
+                    allow_live=False,
+                )
+                route_coords = [
+                    pt
+                    for feat in (res.get("route_geojson") or {}).get("features", [])
+                    for pt in (feat.get("geometry") or {}).get("coordinates", [])
+                ]
+                res["nearby_restrooms"] = restrooms_near_route(
+                    route_coords,
+                    mode=req.dataset_mode,
+                )
             return RouteResponse(**res)
         except Exception:  # noqa: BLE001 - report as an error, never as "no route"
             log.exception("route computation failed (endpoints not logged)")

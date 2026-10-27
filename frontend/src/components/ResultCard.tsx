@@ -1,4 +1,12 @@
-import type { RouteResponse, Seat, Stop } from "../types";
+import { useState } from "react";
+import type {
+  PublicRestroom,
+  RouteResponse,
+  Seat,
+  StationElevator,
+  StationElevatorAlert,
+  Stop,
+} from "../types";
 import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo } from "../format";
 import { Icon } from "./Icon";
 
@@ -15,6 +23,8 @@ interface Props {
   onRestore: (id: string) => void;
   onPrint: () => void;
   limitationNote: string;
+  onRefreshElevators?: () => Promise<void>;
+  onUseAsDestination?: (point: { name: string; lat: number; lon: number }) => void;
 }
 
 /**
@@ -24,6 +34,257 @@ interface Props {
  */
 export function directionsUrl([lon, lat]: [number, number]): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lon.toFixed(6)}&travelmode=walking`;
+}
+
+function ElevatorRow({ el }: { el: StationElevator }) {
+  const isOut = el.status === "outage";
+  return (
+    <li className={`elevator-item ${isOut ? "outage" : "ok"}`}>
+      <div className="elevator-head">
+        <span className={`elevator-badge ${isOut ? "outage" : "ok"}`}>
+          {el.equipment_code}
+        </span>
+        <div>
+          <strong>
+            {isOut ? "Outage reported" : "In service (on record)"}
+          </strong>
+          <div className="muted small">{el.description}</div>
+        </div>
+      </div>
+      {isOut && el.active_outage && (
+        <div className="elevator-alert-box">
+          {el.active_outage.reason && (
+            <div>
+              <strong>Reason:</strong> {el.active_outage.reason}
+            </div>
+          )}
+          {el.active_outage.outage_date && (
+            <div>
+              <strong>Out since:</strong> {el.active_outage.outage_date}
+            </div>
+          )}
+          {el.active_outage.estimated_return && (
+            <div>
+              <strong>Est. return:</strong>{" "}
+              {el.active_outage.estimated_return}
+            </div>
+          )}
+          {el.alternative_route && (
+            <details className="seat-details">
+              <summary>MTA suggested alternative route</summary>
+              <p className="muted small">{el.alternative_route}</p>
+            </details>
+          )}
+        </div>
+      )}
+      {el.upcoming_outages && el.upcoming_outages.length > 0 && !isOut && (
+        <div className="muted small">
+          Upcoming work: {el.upcoming_outages[0].reason || "Scheduled"} (
+          {el.upcoming_outages[0].outage_date} –{" "}
+          {el.upcoming_outages[0].estimated_return})
+        </div>
+      )}
+      {el.reliability && el.reliability.availability_pct !== null && (
+        <div className="elevator-reliability small">
+          <span>
+            <strong>{el.reliability.availability_pct.toFixed(1)}%</strong>{" "}
+            monthly availability ({el.reliability.period})
+          </span>
+          {el.reliability.total_outages !== null && (
+            <span>
+              {" "}
+              · {el.reliability.total_outages} outages (
+              {el.reliability.unscheduled_outages ?? 0} unscheduled)
+            </span>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function StationElevatorsSection({
+  stations,
+  onRefresh,
+}: {
+  stations: StationElevatorAlert[];
+  onRefresh?: () => Promise<void>;
+}) {
+  const [refreshing, setRefreshing] = useState(false);
+  if (!stations.length) return null;
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return (
+    <div className="station-alerts" data-testid="station-elevators">
+      <div className="section-head-row">
+        <h3>Subway elevator alerts & reliability</h3>
+        {onRefresh && stations[0]?.outage_source !== "synthetic" && (
+          <button
+            type="button"
+            className="text-button"
+            disabled={refreshing}
+            onClick={() => void handleRefresh()}
+          >
+            {refreshing ? "Checking MTA…" : "Check live MTA feed"}
+          </button>
+        )}
+      </div>
+      {stations.map((st) => {
+        const hasOutage = st.active_outage_count > 0;
+        return (
+          <div
+            key={`${st.endpoint}-${st.station_id}`}
+            className={`station-card ${hasOutage ? "has-outage" : ""}`}
+          >
+            <div className="station-card-head">
+              <div>
+                <span className="station-role">
+                  Near {st.endpoint === "start" ? "start" : "destination"} (
+                  {fmtM(st.distance_m)})
+                </span>
+                <h4>
+                  {st.station_name}
+                  {st.routes ? ` (${st.routes})` : ""}
+                </h4>
+              </div>
+              <span
+                className={`station-pill ${hasOutage ? "amber" : st.elevator_count > 0 ? "teal" : "gray"}`}
+              >
+                {st.elevator_count === 0
+                  ? st.ada_status
+                  : hasOutage
+                    ? `${st.active_outage_count} of ${st.elevator_count} elevator${st.elevator_count === 1 ? "" : "s"} out`
+                    : `${st.elevator_count} elevator${st.elevator_count === 1 ? "" : "s"} in service`}
+              </span>
+            </div>
+            {st.station_availability_pct !== null &&
+              st.station_availability_pct !== undefined && (
+                <p className="muted small station-summary-line">
+                  Station 2026 reliability:{" "}
+                  <strong>{st.station_availability_pct.toFixed(1)}%</strong>{" "}
+                  hours available
+                  {st.station_total_outages_2026 !== null &&
+                  st.station_total_outages_2026 !== undefined
+                    ? ` (${st.station_total_outages_2026} recorded outage incidents across Jan–Sep 2026)`
+                    : ""}
+                </p>
+              )}
+            {st.elevators.length > 0 ? (
+              <ul className="elevator-list">
+                {st.elevators.map((el) => (
+                  <ElevatorRow key={el.equipment_code} el={el} />
+                ))}
+              </ul>
+            ) : (
+              <p className="muted small">
+                No MTA elevators recorded at this station ({st.ada_status}).
+              </p>
+            )}
+            <p className="muted small station-source-note">
+              Outage status:{" "}
+              {st.outage_source === "live_mta"
+                ? "live MTA ENE feed"
+                : st.outage_source === "synthetic"
+                  ? "synthetic demo"
+                  : "saved MTA snapshot"}
+              {st.outage_updated_at
+                ? ` (${fmtDate(st.outage_updated_at)})`
+                : ""}{" "}
+              · Historical availability from NY Open Data (`rc78-7x78`).
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NearbyRestroomsSection({
+  restrooms,
+  onUseAsDestination,
+}: {
+  restrooms: PublicRestroom[];
+  onUseAsDestination?: (point: {
+    name: string;
+    lat: number;
+    lon: number;
+  }) => void;
+}) {
+  if (!restrooms.length) return null;
+  return (
+    <details className="restrooms-section" data-testid="nearby-restrooms">
+      <summary>
+        Public restrooms near this walk ({restrooms.length})
+      </summary>
+      <p className="muted small">
+        Recorded by NYC Open Data (`i7jb-7jku`). Hours and availability can
+        change without notice.
+      </p>
+      <ul className="restroom-list">
+        {restrooms.slice(0, 6).map((rr) => (
+          <li key={rr.id} className="restroom-item">
+            <div className="restroom-head">
+              <div>
+                <strong>{rr.name}</strong>
+                <div className="muted small">
+                  {rr.location_type}
+                  {rr.distance_from_route_m !== undefined
+                    ? ` · ${fmtM(rr.distance_from_route_m)} from route`
+                    : ""}
+                </div>
+              </div>
+              <span
+                className={`station-pill ${rr.operational ? "teal" : "amber"}`}
+              >
+                {rr.status}
+              </span>
+            </div>
+            <div className="muted small restroom-meta">
+              <span>ADA: {rr.accessibility}</span>
+              {rr.hours && <span> · Hours: {rr.hours}</span>}
+              {rr.changing_stations && (
+                <span> · Changing station: {rr.changing_stations}</span>
+              )}
+            </div>
+            <div className="restroom-actions">
+              <a
+                className="btn small"
+                href={directionsUrl([rr.lon, rr.lat])}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Icon name="walk" size={15} /> Walk there
+              </a>
+              {onUseAsDestination && (
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() =>
+                    onUseAsDestination({
+                      name: `${rr.name} (Restroom)`,
+                      lat: rr.lat,
+                      lon: rr.lon,
+                    })
+                  }
+                >
+                  Plan walk to this restroom
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 function StopDetails({
@@ -197,6 +458,14 @@ export function ResultCard(props: Props) {
                 </div>
               </dl>
 
+              {result.station_elevators &&
+                result.station_elevators.length > 0 && (
+                  <StationElevatorsSection
+                    stations={result.station_elevators}
+                    onRefresh={props.onRefreshElevators}
+                  />
+                )}
+
               <h3>Your walk, step by step</h3>
               <p className="muted small">
                 When you set off, tap <strong>Google Maps</strong> on a stretch
@@ -255,6 +524,14 @@ export function ResultCard(props: Props) {
                   </ol>
                 </>
               )}
+
+              {result.nearby_restrooms &&
+                result.nearby_restrooms.length > 0 && (
+                  <NearbyRestroomsSection
+                    restrooms={result.nearby_restrooms}
+                    onUseAsDestination={props.onUseAsDestination}
+                  />
+                )}
             </>
           )}
 

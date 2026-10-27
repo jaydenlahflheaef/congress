@@ -150,3 +150,40 @@ def test_hypothetical_seats_via_api(client, trips):
     assert r["status"] == "ok" and r["hypothetical"]["without"]["status"] == "limit_unmet"
     b["hypothetical_seats"] = [{"lat": lat, "lon": lon}] * 4
     assert client.post("/api/route", json=b).status_code == 422
+
+
+def test_station_elevators_and_nearby_restrooms_in_route(client, trips):
+    r = client.post("/api/route", json=body(trips["slider-demo"], 150)).json()
+    assert r["status"] == "ok"
+    assert len(r["station_elevators"]) >= 1
+    st = r["station_elevators"][0]
+    assert st["station_name"] == "Demo Main St Station (synthetic)"
+    assert st["active_outage_count"] == 1
+    assert any(e["status"] == "outage" and e["reliability"]["availability_pct"] == 97.7 for e in st["elevators"])
+    assert len(r["nearby_restrooms"]) >= 1
+    assert r["nearby_restrooms"][0]["name"] == "Back St Garden Comfort Station (synthetic)"
+
+
+def test_flushing_route_returns_real_station_elevator_and_restrooms(client):
+    cfg = client.get("/api/config").json()["modes"]["nearby"]
+    trip = cfg["trips"][0]
+    area = client.post("/api/areas", json={"origin": trip["from"], "destination": trip["to"]}).json()
+    assert area["status"] == "ready"
+    assert len(area.get("restrooms", [])) >= 1
+    # Verify ineligible leaning bars or shelters are also returned for map display
+    assert any(not s["routing_eligible"] for s in area["seats"])
+    r = client.post(
+        "/api/route",
+        json={
+            "origin": trip["from"],
+            "destination": trip["to"],
+            "max_gap_m": 400,
+            "dataset_mode": "nearby",
+            "dataset_id": area["dataset_id"],
+        },
+    ).json()
+    assert r["status"] == "ok"
+    assert any("Flushing" in s["station_name"] for s in r["station_elevators"])
+    flushing_st = next(s for s in r["station_elevators"] if "Flushing" in s["station_name"])
+    assert any(e["equipment_code"] == "EL414" and e["reliability"]["availability_pct"] > 95 for e in flushing_st["elevators"])
+    assert len(r["nearby_restrooms"]) >= 1

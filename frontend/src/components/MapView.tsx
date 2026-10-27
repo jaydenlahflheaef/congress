@@ -22,6 +22,7 @@ import type {
   LatLon,
   ModeConfig,
   NamedPoint,
+  PublicRestroom,
   RouteResponse,
   Seat,
 } from "../types";
@@ -81,6 +82,8 @@ interface Props {
   apiKey: string | null;
   config: ModeConfig;
   seats: Seat[];
+  restrooms?: PublicRestroom[];
+  showRestrooms?: boolean;
   result: RouteResponse | null;
   origin: NamedPoint | null;
   destination: NamedPoint | null;
@@ -278,7 +281,14 @@ function LoadProblem() {
 }
 
 /** Everything drawn on the map; only rendered once Google Maps has loaded. */
-function Overlays(props: Props & { popup: string | null; setPopup: (id: string | null) => void }) {
+function Overlays(
+  props: Props & {
+    popup: string | null;
+    setPopup: (id: string | null) => void;
+    rrPopup: string | null;
+    setRrPopup: (id: string | null) => void;
+  },
+) {
   const status = useApiLoadingStatus();
   const { config, result } = props;
   const hasRoute =
@@ -315,6 +325,18 @@ function Overlays(props: Props & { popup: string | null; setPopup: (id: string |
     return all;
   }, [props.seats, result]);
   const popup = props.popup ? seatById.get(props.popup) : undefined;
+
+  const visibleRestrooms = useMemo(() => {
+    if (!props.showRestrooms) return [];
+    const byId = new globalThis.Map<string, PublicRestroom>();
+    for (const r of props.restrooms ?? []) byId.set(r.id, r);
+    for (const r of result?.nearby_restrooms ?? []) byId.set(r.id, r);
+    return Array.from(byId.values());
+  }, [props.showRestrooms, props.restrooms, result]);
+  const rrPopup = useMemo(
+    () => (props.rrPopup ? visibleRestrooms.find((r) => r.id === props.rrPopup) : undefined),
+    [props.rrPopup, visibleRestrooms],
+  );
 
   if (status !== APILoadingStatus.LOADED) return null;
   return (
@@ -424,12 +446,35 @@ function Overlays(props: Props & { popup: string | null; setPopup: (id: string |
               lng={s.lon}
               title={s.label || s.type_label}
               zIndex={eligible ? 2 : 1}
-              onClick={() => props.setPopup(s.id)}
+              onClick={() => {
+                props.setRrPopup(null);
+                props.setPopup(s.id);
+              }}
             >
               <div className={`seat-dot ${eligible ? "eligible" : "ineligible"}`} />
             </HtmlMarker>
           );
         })}
+
+      {visibleRestrooms.map((rr) => (
+        <HtmlMarker
+          key={`rr-${rr.id}`}
+          lat={rr.lat}
+          lng={rr.lon}
+          title={`Public restroom: ${rr.name} (${rr.status})`}
+          zIndex={12}
+          onClick={() => {
+            props.setPopup(null);
+            props.setRrPopup(rr.id);
+          }}
+        >
+          <div
+            className={`restroom-pin ${rr.operational ? "operational" : "closed"}`}
+          >
+            WC
+          </div>
+        </HtmlMarker>
+      ))}
 
       {hasRoute &&
         result!.stops.map((s) => (
@@ -439,7 +484,10 @@ function Overlays(props: Props & { popup: string | null; setPopup: (id: string |
             lng={s.lon}
             title={s.hypothetical ? `Stop ${s.number} (hypothetical bench)` : `Seat ${s.number}`}
             zIndex={20}
-            onClick={() => props.setPopup(s.id)}
+            onClick={() => {
+              props.setRrPopup(null);
+              props.setPopup(s.id);
+            }}
           >
             <Pin text={String(s.number)} cls={s.hypothetical ? "stop hyp" : "stop"} />
           </HtmlMarker>
@@ -531,6 +579,24 @@ function Overlays(props: Props & { popup: string | null; setPopup: (id: string |
           </div>
         </InfoWindow>
       )}
+
+      {rrPopup && (
+        <InfoWindow
+          position={{ lat: rrPopup.lat, lng: rrPopup.lon }}
+          pixelOffset={[0, -10]}
+          onCloseClick={() => props.setRrPopup(null)}
+          headerContent={<strong>{rrPopup.name}</strong>}
+        >
+          <div className="seat-popup">
+            <p>
+              {rrPopup.location_type} · <strong>{rrPopup.status}</strong>
+            </p>
+            <p>ADA: {rrPopup.accessibility}</p>
+            {rrPopup.hours && <p>Hours: {rrPopup.hours}</p>}
+            {rrPopup.notes && <p>{rrPopup.notes}</p>}
+          </div>
+        </InfoWindow>
+      )}
     </>
   );
 }
@@ -559,6 +625,7 @@ function useGoogleAuthFailure() {
 export default function MapView(props: Props) {
   const { result } = props;
   const [popup, setPopup] = useState<string | null>(null);
+  const [rrPopup, setRrPopup] = useState<string | null>(null);
   const authFailed = useGoogleAuthFailure();
   const dark = useDarkTheme();
   const region = props.config.region_bounds;
@@ -618,9 +685,16 @@ export default function MapView(props: Props) {
               if (props.armed && ll) props.onPick(ll.lat, ll.lng);
               else props.onMapTap();
               setPopup(null);
+              setRrPopup(null);
             }}
           >
-            <Overlays {...props} popup={popup} setPopup={setPopup} />
+            <Overlays
+              {...props}
+              popup={popup}
+              setPopup={setPopup}
+              rrPopup={rrPopup}
+              setRrPopup={setRrPopup}
+            />
           </Map>
           <LoadProblem />
         </APIProvider>

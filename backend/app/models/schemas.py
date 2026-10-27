@@ -82,3 +82,5 @@ class RouteResponse(BaseModel):
     endpoint_cache_hit: bool | None = None
     seats_considered: int | None = None
     hypothetical: dict | None = None
+    station_elevators: list[dict] = Field(default_factory=list)
+    nearby_restrooms: list[dict] = Field(default_factory=list)
