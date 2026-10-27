@@ -778,6 +778,15 @@ export default function App() {
               ? "the loaded area"
               : areaConfig.area_name}{" "}
             · dashed outline shows coverage
+            {areaConfig.counts?.thinned_seats ? (
+              <>
+                <br />
+                Dense area: {areaConfig.counts.thinned_seats} more benches were
+                skipped so the benches used are at least{" "}
+                {Math.round(areaConfig.counts.thin_spacing_m ?? 0)} m apart.
+                Routes only use the benches kept.
+              </>
+            ) : null}
           </p>
         )}
         {!hasResult && !loadingArea && examples.length > 0 && (

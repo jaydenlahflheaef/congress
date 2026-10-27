@@ -143,7 +143,7 @@ docs/                  architecture, algorithm, data sources, validation, demo s
 
 ## Known limitations
 
-* New York City only. Each trip loads a bounded neighborhood with a 500 m routing buffer. Optimality and "not possible" claims apply only to that loaded map and its eligible seat records, not the whole city. Very dense areas (over 600 eligible seats or 20,000 graph nodes) are rejected explicitly.
+* New York City only. Each trip loads a bounded neighborhood with a 500 m routing buffer. Optimality and "not possible" claims apply only to that loaded map and the benches used, not the whole city. In very dense areas (more than 600 usable benches) the benches are thinned: the best are kept first (backrest, real benches, NYC DOT records) and any bench closer than a growing spacing (10 m up to 200 m) to one already kept is skipped, until 600 or fewer remain. The page says how many were skipped and the spacing, and the manifest records it. Areas with more than 40,000 walkway nodes are still rejected, and a dense area can take 15 s or more to build.
 * Seat data can be incomplete or outdated, and seats may be occupied. Nothing has been field-checked yet.
 * No checks of curbs, slopes, crossings, surfaces, lighting or safety. The app never calls a route safe, accessible or step-free.
 * Stairs are excluded only where OSM tags them as steps. Indoor and underground passages are excluded, so routes never go through stations or buildings.

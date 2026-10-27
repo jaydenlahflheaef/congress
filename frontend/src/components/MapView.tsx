@@ -27,7 +27,7 @@ import type {
   RouteResponse,
   Seat,
 } from "../types";
-import { fmtM } from "../format";
+import { fmtM, splitHours } from "../format";
 import { toMapFrame, turnToHeading } from "../geometry";
 
 const COLORS = {
@@ -726,8 +726,14 @@ function Overlays(
             <p>
               {rrPopup.location_type} · <strong>{rrPopup.status}</strong>
             </p>
-            <p>ADA: {rrPopup.accessibility}</p>
-            {rrPopup.hours && <p>Hours: {rrPopup.hours}</p>}
+            <p>Accessibility: {rrPopup.accessibility}</p>
+            {rrPopup.hours && (
+              <ul className="hours" aria-label="Hours">
+                {splitHours(rrPopup.hours).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
             {rrPopup.notes && <p>{rrPopup.notes}</p>}
           </div>
         </InfoWindow>

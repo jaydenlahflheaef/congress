@@ -35,3 +35,16 @@ export const STATUS_HEADINGS: Record<string, string> = {
   data_unavailable: 'Walking data unavailable',
   error: 'Something went wrong',
 };
+
+/**
+ * NYC's restroom hours arrive as one run-on string ("Sunday: Closed Monday:
+ * 10:00 am - 8:00 pm ..."); split it into one line per day. Anything else
+ * ("8am-4pm, Open later seasonally") stays a single line.
+ */
+export function splitHours(hours: string | null | undefined): string[] {
+  if (!hours) return [];
+  return hours
+    .split(/\s*(?=(?:Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\b)/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}

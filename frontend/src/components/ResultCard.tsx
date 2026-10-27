@@ -7,7 +7,7 @@ import type {
   StationElevatorAlert,
   Stop,
 } from "../types";
-import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo } from "../format";
+import { STATUS_HEADINGS, fmtDate, fmtM, sourceName, yesNo, splitHours } from "../format";
 import { Icon } from "./Icon";
 
 interface Props {
@@ -236,14 +236,12 @@ function NearbyRestroomsSection({
         {restrooms.slice(0, 6).map((rr) => (
           <li key={rr.id} className="restroom-item">
             <div className="restroom-head">
-              <div>
-                <strong>{rr.name}</strong>
-                <div className="muted small">
-                  {rr.location_type}
-                  {rr.distance_from_route_m !== undefined
-                    ? ` · ${fmtM(rr.distance_from_route_m)} from route`
-                    : ""}
-                </div>
+              <strong>{rr.name}</strong>
+              <div className="muted small">
+                {rr.location_type}
+                {rr.distance_from_route_m !== undefined
+                  ? ` · ${fmtM(rr.distance_from_route_m)} from route`
+                  : ""}
               </div>
               <span
                 className={`station-pill ${rr.operational ? "teal" : "amber"}`}
@@ -251,13 +249,19 @@ function NearbyRestroomsSection({
                 {rr.status}
               </span>
             </div>
-            <div className="muted small restroom-meta">
-              <span>ADA: {rr.accessibility}</span>
-              {rr.hours && <span> · Hours: {rr.hours}</span>}
+            <div className="restroom-facts">
+              <span className="fact">Accessibility: {rr.accessibility}</span>
               {rr.changing_stations && (
-                <span> · Changing station: {rr.changing_stations}</span>
+                <span className="fact">Changing station: {rr.changing_stations}</span>
               )}
             </div>
+            {rr.hours && (
+              <ul className="hours" aria-label="Hours">
+                {splitHours(rr.hours).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
             <div className="restroom-actions">
               {onFocusRestroom && (
                 <button

@@ -32,7 +32,7 @@ from .seats import SeatRecord, rules_hash
 
 MAX_TRIP_M = 3000
 MAX_SEATS = 600
-MAX_NODES = 20000
+MAX_NODES = 40000
 CACHE_TTL = 7 * 86400
 CACHE_VERSION = 'nearby-v3'
 KEY_PATTERN = re.compile(r'[0-9a-f]{24}')
@@ -94,9 +94,9 @@ def build_area(service, progress):
     for s in dot_seats:
         s.x, s.y = proj(s.lon, s.lat)
     seats += dot_seats
-    built = attach_seats(graph, seats)
-    if len(built.seat_node) > MAX_SEATS:
-        raise DataUnavailable('This area contains more than 600 usable seat records. Try a shorter trip; no seats have been silently removed.')
+    # Dense areas are thinned to at most MAX_SEATS well-spread benches (never silently:
+    # the count, spacing and a warning go into the manifest and the page shows a note).
+    built = attach_seats(graph, seats, max_seats=MAX_SEATS)
     progress('Connecting benches to the walking map…')
     # Fingerprint the serialized representation, also used after a restart.
     gj = graph_to_json(graph)
@@ -116,7 +116,9 @@ def build_area(service, progress):
         'service': list(service.exterior.coords), 'routing': list(routing.exterior.coords),
         'manifest': {'retrieved': retrieved,
                      'counts': {'osm_seat_records': osm_count, 'nyc_dot_seat_records': len(dot_seats),
-                                'eligible_seats': len(built.seat_node), 'excluded_seats': len(built.seats) - len(built.seat_node)},
+                                'eligible_seats': len(built.seat_node), 'excluded_seats': len(built.seats) - len(built.seat_node),
+                                **({'thinned_seats': built.thinned['dropped'], 'thin_spacing_m': built.thinned['min_spacing_m']}
+                                   if built.thinned else {})},
                      'warnings': built.warnings, 'merge_notes': built.merge_notes, 'sources': sources},
     }
 

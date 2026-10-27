@@ -255,3 +255,47 @@ def test_search_is_limited_to_nyc_and_moves_building_centers_to_walkways(monkeyp
     assert geocoder.search_places(' library flushing ')[0]['lon'] == -73.8289
     assert request.call_count == 1
     assert geocoder.search_places('x') == []
+
+
+def _bench(i, x, y, **kw):
+    from app.data.seats import SeatRecord
+    return SeatRecord(id=f'b{i}', lon=0, lat=0, x=x, y=y, type=kw.pop('type', 'bench'), public_access='yes', **kw)
+
+
+def test_thinning_keeps_everything_when_under_the_limit():
+    from app.data.build import thin_seats
+    seats = [_bench(i, i * 3, 0) for i in range(10)]
+    kept, dropped, spacing = thin_seats(seats, 600)
+    assert kept == seats and dropped == [] and spacing is None
+
+
+def test_thinning_spreads_benches_and_prefers_backrests_and_real_benches():
+    from app.data.build import thin_seats
+    # 40 benches in a 4 m tight row, plus a few far apart
+    seats = [_bench(i, i * 4, 0) for i in range(40)] + [_bench(100 + i, 1000 + i * 500, 0) for i in range(3)]
+    seats[5].backrest = True                 # preferred over its neighbors
+    seats[6].type = 'bus_stop_bench'         # least preferred
+    kept, dropped, spacing = thin_seats(seats, 20)
+    assert len(kept) <= 20 and len(kept) + len(dropped) == len(seats)
+    assert spacing is not None and spacing >= 10
+    ids = {s.id for s in kept}
+    assert 'b5' in ids and {'b100', 'b101', 'b102'} <= ids
+    xs = sorted(s.x for s in kept)
+    assert all(b - a >= spacing - 1e-9 for a, b in zip(xs, xs[1:])), 'kept benches respect the spacing'
+    again, _, _ = thin_seats(list(reversed(seats)), 20)
+    assert {s.id for s in again} == ids, 'result does not depend on input order'
+
+
+def test_dense_area_is_thinned_not_rejected_and_reports_it(tmp_path):
+    from app.data.build import attach_seats
+    ds = load_synthetic()
+    seats = []
+    for i in range(30):  # many benches along the demo's first walkway
+        n = next(iter(ds.graph.segments.values()))
+        seats.append(_bench(i, n.xy[0][0] + i * 6, n.xy[0][1] + 1))
+    built = attach_seats(ds.graph, seats, max_seats=8)
+    assert len(built.seat_node) <= 8
+    assert built.thinned and built.thinned['kept'] + built.thinned['dropped'] <= 30
+    assert any('Dense area' in w for w in built.warnings)
+    skipped = [s for s in built.seats.values() if not s.routing_eligible and 'dense area' in (s.exclusion_reason or '')]
+    assert len(skipped) == built.thinned['dropped'], 'skipped benches stay listed, marked as not counted'

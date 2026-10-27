@@ -1653,3 +1653,55 @@ a { color: var(--sky); }
 .map-fab.paused { border-color: var(--primary); color: var(--primary); }
 @media (min-width: 821px) { .map-fab { bottom: 28px; } }
 .compass-reset { top: calc(var(--top-bottom) + 12px); }
+
+/* ===== Centered text, calm highlights, themed pop-ups ===== */
+/* Text in the bottom sheet and pop-ups is centered; the How it works article stays left-aligned. */
+.sheet-head, .sheet-body, .seat-popup { text-align: center; }
+.route-peek { flex-direction: column; gap: 8px; }
+.route-peek > div { flex: none; width: 100%; }
+.btn.start { width: 100%; max-width: 340px; justify-content: center; }
+.limit legend { text-align: center; }
+.limit > p, .area-caption, .button-hint, .search-hint, .planner-footer, .examples-title { text-align: center; }
+.map-legend, .checks, .restroom-actions { justify-content: center; }
+.checks label { display: flex; justify-content: center; align-items: center; gap: 6px; }
+.more-options > summary, .restrooms-section > summary, .propose > summary { text-align: center; }
+.btn.example, .btn, .leg-nav, .tag, .station-pill, .elevator-badge { text-align: center; justify-content: center; }
+.examples { justify-items: center; }
+.btn.example { width: 100%; }
+.metrics > div { text-align: center; }
+
+/* Highlights are flat tinted panels with an even outline. The old colored
+   left-edge stripes bent around rounded corners into crescent shapes. */
+.status { border-left: 0; padding-left: 0; text-align: center; }
+.leg { flex-direction: column; justify-content: center; align-items: center; text-align: center; border: 1.5px solid var(--line); border-left-width: 1.5px; }
+.leg.over { border: 1.5px dashed var(--sun); background: color-mix(in srgb, var(--sun) 16%, var(--card)); }
+.leg.selected { outline: 2px solid var(--primary); outline-offset: 1px; }
+.legs li { align-items: stretch; flex-direction: column; gap: 6px; }
+.leg-nav { min-height: 44px; justify-content: center; }
+.station-card, .station-card.has-outage { background: var(--card); border: 1.5px solid var(--line); text-align: center; }
+.station-card.has-outage { border-color: var(--primary); }
+.station-card-head { flex-direction: column; align-items: center; gap: 6px; }
+.elevator-item, .restroom-item { background: color-mix(in srgb, var(--ink) 4%, var(--card)); border: 1.5px solid var(--line); text-align: center; }
+.elevator-item.outage { border-color: var(--primary); }
+.elevator-item.ok { border-color: color-mix(in srgb, var(--teal) 55%, var(--line)); }
+.elevator-head, .restroom-head { flex-direction: column; align-items: center; gap: 4px; }
+.elevator-alert-box { background: color-mix(in srgb, var(--primary) 12%, var(--card)); text-align: center; }
+.elevator-reliability { text-align: center; }
+.restroom-facts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 8px 0; }
+.fact { font-size: 0.74rem; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--sky) 16%, var(--card)); color: var(--ink); }
+.hours { list-style: none; margin: 6px 0 10px; padding: 0; font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.station-pill.teal { background: color-mix(in srgb, var(--teal) 18%, var(--card)); }
+.station-pill.amber { background: color-mix(in srgb, var(--primary) 16%, var(--card)); }
+.stop, .stop-head { text-align: center; justify-content: center; }
+.restroom-pin { border-width: 2px; }
+
+/* Google's pop-up bubble follows the app theme (it was always white, so the
+   light text in dark mode disappeared) and wraps long text instead of running off screen. */
+.gm-style .gm-style-iw-c { background: var(--card) !important; color: var(--ink) !important; border-radius: 18px !important; box-shadow: var(--shadow-soft) !important; max-width: min(300px, 80vw) !important; }
+.gm-style .gm-style-iw-d { color: var(--ink); overflow-wrap: anywhere; }
+.gm-style .gm-style-iw-ch { text-align: center; font-family: var(--font-head); color: var(--ink); padding-top: 12px; }
+.gm-style .gm-style-iw-tc::after { background: var(--card) !important; }
+.gm-style .gm-ui-hover-effect > span { background-color: var(--ink) !important; }
+.seat-popup p { color: var(--ink); margin: 0 0 6px; }
+.seat-popup .hours { margin: 4px 0 8px; }
+.elevator-item.outage, .elevator-item.ok { border-left-width: 1.5px; }
