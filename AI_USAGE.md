@@ -56,3 +56,6 @@ At the owner's request, Claude rebuilt the interface around a full-screen Google
 
 The owner (with another assistant) uploaded a recolored interface with a light/dark switch. At the owner's request, Claude then renamed the app to EzWay (the Render service and some internal names still say `rest-route`), replaced text arrows with drawn SVG icons, recolored the app icon, and switched the Google map to a style set in code that hides Google's own place, shop and transit icons and follows dark mode. Markers became EzWay's own HTML overlays (Google's AdvancedMarker needs a Map ID, which ignores code styles). Claude also fixed: the raised sheet sliding under the search card on iPhones (the status-bar inset was added twice, and the card was never measured), quick swipes stopping halfway, low contrast of map pins in dark mode, a see-through sheet, and a crash of the whole app when Google refuses the map key. The EzWay map style could not be checked here because the key is correctly locked to the deployed site; the browser tests run against Google's keyless development mode.
 
+## Brand mark — 2026-10-26
+
+The owner supplied the EzWay "Z" logo image. Claude resized it into the app icons, favicon, header logo and a link-preview cover (`frontend/public/`), and set the Home Screen splash color to the logo's red. The image itself was not created by the AI.

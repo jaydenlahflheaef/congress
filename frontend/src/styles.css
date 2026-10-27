@@ -1705,3 +1705,11 @@ a { color: var(--sky); }
 .seat-popup p { color: var(--ink); margin: 0 0 6px; }
 .seat-popup .hours { margin: 4px 0 8px; }
 .elevator-item.outage, .elevator-item.ok { border-left-width: 1.5px; }
+
+/* The EzWay Z logo image */
+img.logo { background: none !important; border-radius: 22% !important; object-fit: cover; flex: none; display: block; }
+.brand-row .logo { width: 32px; height: 32px; }
+@media (max-width: 820px) { .brand-row .logo { width: 28px; height: 28px; } }
+.fatal[role="status"] { display: grid; justify-items: center; gap: 14px; text-align: center; }
+.logo-splash { border-radius: 22%; box-shadow: var(--shadow-soft); }
+

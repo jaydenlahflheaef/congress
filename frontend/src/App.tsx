@@ -448,7 +448,8 @@ export default function App() {
   if (!config || !modeCfg)
     return (
       <main className="fatal" role="status">
-        <span className="spinner" /> Opening EzWay…
+        <img className="logo-splash" src="/logo.png" alt="" width={72} height={72} />
+        <span>Opening EzWay…</span>
       </main>
     );
   const hasResult = !!result || planner.pending || !!planner.networkError;
@@ -627,9 +628,7 @@ export default function App() {
               onClick={() => go("plan")}
               aria-label="EzWay home"
             >
-              <span className="logo" aria-hidden="true">
-                <Icon name="bench" />
-              </span>
+              <img className="logo" src="/logo.png" alt="" width={32} height={32} />
               <span>
                 Ez<span className="brand-way">Way</span>
               </span>
