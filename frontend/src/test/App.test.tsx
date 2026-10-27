@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import { config, okRoute } from "./fixtures";
 
-vi.mock("../components/RouteMap", () => ({
+vi.mock("../components/MapView", () => ({
   default: (p: {
     result: { stops: { number: number; id: string }[] } | null;
   }) => (

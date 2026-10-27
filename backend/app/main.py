@@ -106,6 +106,12 @@ def create_app(pilot_dir: Path | None = None, *, load_live_data: bool = True, se
             "modes": modes,
             "default_mode": "nearby",
             "limitation_note": LIMITATION_NOTE,
+            # A browser key: it is visible in the page by design, so restrict it to the
+            # app's web address in Google Cloud. Set on the host, never committed.
+            "google_maps": {
+                "api_key": os.environ.get("GOOGLE_MAPS_API_KEY") or None,
+                "map_id": os.environ.get("GOOGLE_MAPS_MAP_ID") or "DEMO_MAP_ID",
+            },
         }
 
     @app.post("/api/areas")

@@ -27,6 +27,14 @@ Open http://127.0.0.1:8000. On Windows use `.venv\Scripts\python`.
 
 Every push to the connected branch redeploys automatically.
 
+### The Google map key
+
+1. In the Render dashboard, open the service, then **Environment → Add environment variable**: key `GOOGLE_MAPS_API_KEY`, value your key. Save; Render redeploys.
+2. In Google Cloud (**APIs & Services → Credentials**), open the key and set **Application restrictions → Websites** to your Render address, e.g. `https://rest-route.onrender.com/*`. Keep **API restrictions** on Maps JavaScript API. A browser key is visible in the page by design; these restrictions stop other sites from using it.
+3. Optional: set a budget alert in Google Cloud Billing. Google's free monthly allowance covers a small project, but check Google's current pricing.
+
+Never commit the key. For local runs, put it in `.env` (ignored by Git) and load it into the environment before starting the server.
+
 About the free plan:
 
 * It sleeps after about 15 minutes without visitors; the next visit takes about a minute to wake up.
@@ -55,11 +63,12 @@ A native App Store app would need Xcode, an Apple developer account for distribu
 
 - `REST_ROUTE_GEOCODER_URL`: Photon-compatible endpoint, default `https://photon.komoot.io/api/`. Explicit searches only, limited to New York City, cached, serialized and limited to one request per second in this process. Public Photon is for reasonable small-project use and has no availability guarantee: https://github.com/komoot/photon.
 - `REST_ROUTE_AREA_CACHE`: where built areas are saved (default `data/areas`).
-- `VITE_TILE_URL` and `VITE_TILE_ATTRIBUTION`: replaceable map tile provider, set before the frontend build. Preserve attribution and respect provider usage limits.
+- `GOOGLE_MAPS_API_KEY`: the Google Maps browser key (Maps JavaScript API). Read by the server at runtime, so changing it needs no rebuild. Without it the app still plans routes, but shows a notice instead of the map.
+- `GOOGLE_MAPS_MAP_ID`: optional map style id from Google Cloud (Map Management). `DEMO_MAP_ID` is used otherwise.
 
 ## Privacy notes
 
-Location requests require HTTPS outside localhost (Render provides it). Access logs should stay disabled because search strings are in query URLs. Application code does not log trip coordinates. Place searches go to Photon; map tile requests disclose the viewport; Google Maps receives a rest stop's location only when its button is tapped. Walking areas are built from local data, so trips are not sent to any map data service. No credentials or trip names are saved in area files.
+Location requests require HTTPS outside localhost (Render provides it). Access logs should stay disabled because search strings are in query URLs. Application code does not log trip coordinates. Place searches go to Photon; the Google map receives requests for the area being viewed; Google Maps receives a rest stop's location only when its button is tapped. Walking areas are built from local data, so trips are not sent to any map data service. No credentials or trip names are saved in area files.
 
 ## Refreshing the NYC data
 

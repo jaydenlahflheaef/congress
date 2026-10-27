@@ -47,3 +47,8 @@ At the owner's request, Claude (Anthropic) made the planner New York City only a
 * Replaced the Vercel setup with a Render Blueprint and a slimmer server image; updated README, DEPLOY.md and docs; added and updated tests (backend 756, frontend 28, Playwright 18 passed).
 
 The AI did not deploy the app, did not test on a real iPhone, and did not change the routing algorithm. The ten-trip check is a software smoke test, not a field check.
+
+## Claude update (map-first interface, Google map) — 2026-10-26
+
+At the owner's request, Claude rebuilt the interface around a full-screen Google map (`MapView.tsx`, using @vis.gl/react-google-maps) with a floating search card and a draggable bottom sheet that becomes a side panel on wide screens (`Sheet.tsx`), replacing the Leaflet/OpenStreetMap tile map. The owner created the Google Maps API key; it is read by the server from `GOOGLE_MAPS_API_KEY` and is not stored in the repository. Routing, data and results logic were not changed. Tests were updated for the new map (Playwright runs against the real Google map); screenshots were checked at iPhone and desktop sizes in Chromium, not on a real iPhone.
+

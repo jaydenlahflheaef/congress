@@ -134,9 +134,10 @@ export function HowItWorks({
         built from map data stored on the server, so trips are not sent to any
         map data service; built areas are reused for up to seven days. Place
         searches are sent to Photon and cached temporarily in server memory.
-        Google Maps only receives a rest stop's location when you tap its
-        button. The map service receives
-        requests for the map area you are viewing. Your location is only
+        The map is Google Maps, so Google receives requests for the map area
+        you are viewing (the route itself is drawn in your browser). A rest
+        stop's location is sent to Google Maps only when you tap its button.
+        Your location is only
         requested if you press "Use my location". Only your rest-distance
         setting is saved in this browser.
       </p>

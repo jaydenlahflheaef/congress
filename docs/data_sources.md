@@ -42,10 +42,10 @@ Two records merge only if they are within 5 m, have compatible types, attach to 
 * `unavailable`: a field check found it missing or unusable; not used.
 * Excluded by you: removed for the current trip only.
 
-## Map tiles
+## The map
 
-The default basemap is the OpenStreetMap standard tile server, used with visible attribution and normal browser caching, no prefetching or bulk download, in line with https://operations.osmfoundation.org/policies/tiles/. Set `VITE_TILE_URL` to use another provider. The synthetic demo draws its own streets and needs no basemap. The basemap does not work offline.
+The map picture is Google Maps (Maps JavaScript API), loaded with the browser key in `GOOGLE_MAPS_API_KEY` and shown with Google's own attribution and terms. Only the background map comes from Google: the walkways, benches and routes drawn on it are Rest Route's own OpenStreetMap and NYC DOT data. The synthetic demo hides the Google map under a plain background and draws its own fictional streets. The map does not work offline; the route list does.
 
 ## Code dependencies
 
-Python: FastAPI (MIT), Pydantic (MIT), NetworkX (BSD), OSMnx (MIT), Shapely (BSD), GeoPandas (BSD), pyproj (MIT). JavaScript: React (MIT), Leaflet (BSD-2), React Leaflet (Hippocratic License 2.1), Vite (MIT), Atkinson Hyperlegible font (SIL Open Font License). Check each package's license file before redistributing.
+Python: FastAPI (MIT), Pydantic (MIT), NetworkX (BSD), OSMnx (MIT), Shapely (BSD), GeoPandas (BSD), pyproj (MIT). JavaScript: React (MIT), @vis.gl/react-google-maps (MIT), Vite (MIT), Atkinson Hyperlegible font (SIL Open Font License). Check each package's license file before redistributing.

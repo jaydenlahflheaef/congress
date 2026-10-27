@@ -1,15 +1,74 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// The map is Google Maps. Route lines are drawn on a canvas, so map state is
+// read from the map element's data attributes, and the test hook below lets a
+// test turn coordinates into a screen position.
+const hasKey = !!process.env.GOOGLE_MAPS_API_KEY;
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).__REST_ROUTE_TEST__ = true;
+  });
+});
+
 async function setLimit(page: Page, m: number) {
   const num = page.getByLabel("Maximum distance between rests in meters");
   await num.fill(String(m));
   await num.press("Enter");
 }
 
+/** On phones the sheet lowers after a route is found; raise it to read the details. */
+async function expandSheet(page: Page) {
+  const expand = page.getByRole("button", { name: "Expand panel" });
+  if (await expand.isVisible()) await expand.click();
+}
+
 async function pickDemoTrip(page: Page) {
   await page.goto("/#example");
   await page.getByLabel("Example walks").selectOption("slider-demo");
+  await expandSheet(page);
   await expect(page.getByTestId("status-heading")).toBeVisible();
+}
+
+/** The point halfway along a [lon, lat] polyline (flat approximation, fine over metres). */
+function halfway(coords: [number, number][]): [number, number] {
+  const seg = coords.slice(1).map((p, i) => Math.hypot(p[0] - coords[i][0], p[1] - coords[i][1]));
+  let left = seg.reduce((a, b) => a + b, 0) / 2;
+  for (let i = 0; i < seg.length; i++) {
+    if (left <= seg[i]) {
+      const t = left / seg[i];
+      return [
+        coords[i][0] + t * (coords[i + 1][0] - coords[i][0]),
+        coords[i][1] + t * (coords[i + 1][1] - coords[i][1]),
+      ];
+    }
+    left -= seg[i];
+  }
+  return coords[coords.length - 1];
+}
+
+/** Screen position of a coordinate on the Google map. */
+async function screenPoint(page: Page, lat: number, lng: number) {
+  return page.evaluate(
+    ([lat, lng]) => {
+      const g = (window as unknown as { google: typeof google }).google;
+      const map = (window as unknown as { __restRouteMap: google.maps.Map })
+        .__restRouteMap;
+      const proj = map.getProjection()!;
+      const b = map.getBounds()!;
+      const scale = 2 ** map.getZoom()!;
+      const nw = proj.fromLatLngToPoint(
+        new g.maps.LatLng(b.getNorthEast().lat(), b.getSouthWest().lng()),
+      )!;
+      const p = proj.fromLatLngToPoint(new g.maps.LatLng(lat, lng))!;
+      const rect = map.getDiv().getBoundingClientRect();
+      return {
+        x: rect.left + (p.x - nw.x) * scale,
+        y: rect.top + (p.y - nw.y) * scale,
+      };
+    },
+    [lat, lng],
+  );
 }
 
 test("feasible flow: slider changes the route from real results", async ({
@@ -26,9 +85,10 @@ test("feasible flow: slider changes the route from real results", async ({
   await expect(page.getByTestId("metric-total")).toHaveText("904 m");
   await expect(page.getByTestId("metric-rests")).toHaveText("8");
   await expect(page.getByTestId("status-heading")).toContainText("(150 m)");
-  // route drawn as map paths, numbered seats shown
-  await expect(page.locator("path.route-leg:not(.over)")).toHaveCount(9);
-  await expect(page.locator(".map-pin.stop")).toHaveCount(8);
+  // the map draws the same route: nine legs, eight numbered seats
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-legs", "9");
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-over-legs", "0");
+  if (hasKey) await expect(page.locator(".map-pin.stop")).toHaveCount(8);
 });
 
 test("limit-unmet flow: fallback shows smallest achievable gap and amber legs", async ({
@@ -43,7 +103,7 @@ test("limit-unmet flow: fallback shows smallest achievable gap and amber legs", 
     "smallest achievable longest gap is 136 m",
   );
   await expect(page.locator("button.leg.over")).toHaveCount(2);
-  await expect(page.locator("path.route-leg.over")).toHaveCount(2);
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-over-legs", "2");
   // selecting a leg highlights it
   await page.locator("button.leg.over").first().click();
   await expect(page.locator("button.leg.over").first()).toHaveAttribute(
@@ -60,7 +120,7 @@ test("no-data flow: unavailable real area stays real @mobile", async ({
       json: {
         status: "ok",
         places: [
-          { id: "boston", name: "Boston Garden", lat: 42.35, lon: -71.07 },
+          { id: "flushing", name: "Flushing Town Hall", lat: 40.7639, lon: -73.8301 },
         ],
       },
     }),
@@ -77,34 +137,34 @@ test("no-data flow: unavailable real area stays real @mobile", async ({
   await expect(page.getByTestId("demo-indicator")).toHaveCount(0);
   for (const label of ["From", "To"]) {
     const input = page.getByRole("combobox", { name: label, exact: true });
-    await input.fill("Boston");
+    await input.fill("Flushing");
     await input.press("Enter");
     await page.getByRole("option").getByRole("button").click();
   }
   await page.getByRole("button", { name: "Find my walk" }).click();
   await expect(page.getByRole("alert")).toContainText("could not be loaded");
-  await expect(page.locator("path.route-leg")).toHaveCount(0);
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-legs", "0");
   await expect(page.getByTestId("demo-indicator")).toHaveCount(0);
 });
 
 test("disconnected trip is explained, not drawn", async ({ page }) => {
   await page.goto("/#example");
   await page.getByLabel("Example walks").selectOption("disconnected");
+  await expandSheet(page);
   await expect(page.getByTestId("status-heading")).toHaveText(
     "No connected walking route",
   );
+  await expect(page.getByTestId("route-map")).toHaveAttribute("data-legs", "0");
 });
 
-test("map tile failure leaves route lines and text usable", async ({
+test("if Google Maps cannot load, the route list still works", async ({
   page,
 }) => {
-  await page.route(/tile\.openstreetmap\.org/, (r) => r.abort());
+  await page.route(/maps\.googleapis\.com/, (r) => r.abort());
   await pickDemoTrip(page);
-  await page.getByText("Map options & experiments", { exact: true }).click();
-  await page.getByLabel("Show street map").check();
-  await expect(page.getByTestId("tile-error")).toBeVisible();
+  if (hasKey) await expect(page.getByTestId("map-error")).toBeVisible();
   await expect(page.getByTestId("leg-list")).toBeVisible();
-  await expect(page.locator("path.route-leg:not(.over)").first()).toBeVisible();
+  await expect(page.getByTestId("metric-total")).toHaveText("622 m");
 });
 
 test("excluding a seat recalculates", async ({ page }) => {
@@ -122,7 +182,7 @@ test("print view shows a text summary without the map", async ({ page }) => {
   await expect(page.getByTestId("print-summary")).toContainText(
     "Total distance: 622 m",
   );
-  await expect(page.locator(".leaflet-container")).toBeHidden();
+  await expect(page.getByTestId("route-map")).toBeHidden();
 });
 
 test("keyboard: limit can be changed with the keyboard @mobile", async ({
@@ -138,32 +198,52 @@ test("keyboard: limit can be changed with the keyboard @mobile", async ({
   await expect(page.getByTestId("status-heading")).toContainText("(390 m)");
 });
 
-test("mobile: results panel collapses @mobile", async ({ page, isMobile }) => {
+test("mobile: the bottom sheet lowers and raises @mobile", async ({
+  page,
+  isMobile,
+}) => {
   test.skip(!isMobile, "mobile only");
   await pickDemoTrip(page);
-  const toggle = page.getByRole("button", { name: "Hide route details" });
-  await toggle.click();
+  await expect(page.getByTestId("leg-list")).toBeVisible();
+  await page.getByRole("button", { name: "Collapse panel" }).click();
   await expect(page.getByTestId("leg-list")).toBeHidden();
-  await page.getByRole("button", { name: "Show route details" }).click();
+  // the summary and the slider stay in view while lowered
+  await expect(
+    page.getByLabel("Maximum distance between rests in meters"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Expand panel" }).click();
   await expect(page.getByTestId("leg-list")).toBeVisible();
 });
 
 test("propose a hypothetical bench closes the gap at 100 m", async ({
   page,
 }) => {
+  test.skip(!hasKey, "needs the Google map to tap on");
   await pickDemoTrip(page);
+  const unmet = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/route") &&
+      JSON.parse(r.request().postData() ?? "{}").max_gap_m === 100,
+  );
   await setLimit(page, 100);
+  const route = await (await unmet).json();
   await expect(page.getByTestId("status-heading")).toContainText(
     "Limit not met",
   );
-  const gapLeg = page.locator("path.route-leg.over").first();
-  const box = await gapLeg.boundingBox();
+  // the halfway point along the first over-limit stretch lies on its walkway
+  const over = route.route_geojson.features.find(
+    (f: { properties: { over_limit: boolean } }) => f.properties.over_limit,
+  );
+  const [lng, lat] = halfway(over.geometry.coordinates);
   await page.getByText("Map options & experiments", { exact: true }).click();
   await page.getByText("Try adding a bench", { exact: true }).click();
   await page
     .getByRole("button", { name: "Place a hypothetical bench" })
     .click();
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.waitForTimeout(800); // let the map settle after the sheet moves
+  const pt = await screenPoint(page, lat, lng);
+  await page.mouse.click(pt.x, pt.y);
+  await expandSheet(page);
   await expect(page.getByTestId("status-heading")).toContainText(
     "Within your selected limit",
   );
@@ -214,7 +294,6 @@ test("real planner fits mobile and has no automatic location prompt @mobile", as
   expect(width.body).toBeLessThanOrEqual(width.viewport);
   await page.screenshot({
     path: `test-results/planner-${test.info().project.name}.png`,
-    fullPage: true,
   });
 });
 
@@ -227,11 +306,19 @@ test("Flushing example walk routes on real NYC data with Google Maps links @mobi
       name: "Flushing–Main St station to Queens Public Library at Flushing",
     })
     .click();
+  // the lowered sheet already offers turn-by-turn directions to the first stop
+  await expect(
+    page.getByRole("link", { name: /^Start walking: directions to/ }),
+  ).toHaveAttribute("href", /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
+  await page.screenshot({
+    path: `test-results/flushing-${test.info().project.name}.png`,
+  });
+  await expandSheet(page);
   await expect(page.getByTestId("status-heading")).toContainText(
     "Within your selected limit",
   );
   await expect(page.getByTestId("demo-indicator")).toHaveCount(0);
-  const links = page.getByRole("link", { name: /in Google Maps$/ });
+  const links = page.getByRole("link", { name: /^Walking directions to .* in Google Maps$/ });
   await expect(links.first()).toHaveAttribute(
     "href",
     /^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=40\.7\d+,-73\.8\d+&travelmode=walking$/,
@@ -239,10 +326,10 @@ test("Flushing example walk routes on real NYC data with Google Maps links @mobi
   expect(await links.count()).toBe(
     await page.getByTestId("leg-list").locator("li").count(),
   );
-  await page.screenshot({
-    path: `test-results/flushing-${test.info().project.name}.png`,
-    fullPage: true,
-  });
+  await expect(page.getByTestId("route-map")).toHaveAttribute(
+    "data-legs",
+    String(await links.count()),
+  );
 });
 
 test("home screen app manifest and icon are served", async ({ request }) => {

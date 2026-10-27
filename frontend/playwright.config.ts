@@ -14,7 +14,11 @@ export default defineConfig({
     cwd: "../backend",
     url: `http://127.0.0.1:${PORT}/api/health`,
     reuseExistingServer: false,
-    env: { REST_ROUTE_PILOT_DIR: "/nonexistent-rest-route-pilot" },
+    env: {
+      REST_ROUTE_PILOT_DIR: "/nonexistent-rest-route-pilot",
+      // Without a key the map shows a notice and map-only checks are skipped.
+      GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY ?? "",
+    },
     timeout: 60_000,
   },
   projects: [

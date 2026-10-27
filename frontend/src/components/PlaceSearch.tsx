@@ -8,10 +8,21 @@ interface Props {
   value: NamedPoint | null;
   onChange: (p: NamedPoint | null) => void;
   disabled?: boolean;
+  /** Keep the label for screen readers only (the search card shows A/B dots). */
+  hideLabel?: boolean;
+  placeholder?: string;
 }
 
 /** Search happens on Enter or Search, never on every keystroke. */
-export function PlaceSearch({ label, mode, value, onChange, disabled }: Props) {
+export function PlaceSearch({
+  label,
+  mode,
+  value,
+  onChange,
+  disabled,
+  hideLabel,
+  placeholder,
+}: Props) {
   const id = useId();
   const [text, setText] = useState(value?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -37,7 +48,7 @@ export function PlaceSearch({ label, mode, value, onChange, disabled }: Props) {
 
   const search = async () => {
     if (mode === "nearby" && text.trim().length < 3) {
-      setMessage("Type a place or address, including its city.");
+      setMessage("Type a place or address in New York City.");
       return;
     }
     request.current?.abort();
@@ -56,7 +67,7 @@ export function PlaceSearch({ label, mode, value, onChange, disabled }: Props) {
       setMessage(
         r.places.length
           ? ""
-          : "No places found. Add a city or choose a point on the map.",
+          : "No places found in New York City. Try another name or choose a point on the map.",
       );
     } catch (e) {
       if (ticket === revision.current && (e as Error).name !== "AbortError") {
@@ -83,7 +94,9 @@ export function PlaceSearch({ label, mode, value, onChange, disabled }: Props) {
         if (!root.current?.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id} className={hideLabel ? "visually-hidden" : undefined}>
+        {label}
+      </label>
       <div className={`search-input ${value ? "has-value" : ""}`}>
         <input
           id={id}
@@ -97,9 +110,10 @@ export function PlaceSearch({ label, mode, value, onChange, disabled }: Props) {
           }
           autoComplete="off"
           placeholder={
-            label === "From"
+            placeholder ??
+            (label === "From"
               ? "Starting place or address"
-              : "Where are you going?"
+              : "Where are you going?")
           }
           value={text}
           disabled={disabled}

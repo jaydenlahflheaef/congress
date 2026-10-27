@@ -4,7 +4,7 @@ Rest Route plans walks around places to sit. You choose a start, a destination a
 
 Rest Route covers **New York City**. Each trip uses a small walking area cut from OpenStreetMap and NYC DOT data that is saved in this repository, so planning never waits on an outside map server. Endpoints can be up to 3 km apart; walking distance may be longer. Downtown Flushing is prepared ahead of time and opens instantly. The original fictional example is available under **How it works → Try an example walk**, and is never substituted for real data.
 
-On a phone, Rest Route installs as a Home Screen app (Safari → Share → Add to Home Screen). Each stretch of a planned walk has a **Google Maps** button for turn-by-turn walking directions to the next rest stop.
+The interface works like Google Maps: a full-screen Google map, a search card for the start and destination, and a sheet at the bottom (a side panel on wide screens) with the rest-distance slider and the route. On a phone, Rest Route installs as a Home Screen app (Safari → Share → Add to Home Screen). **Start** and the button on each stretch open Google Maps turn-by-turn walking directions to the next rest stop.
 
 A rest resets the distance count in the plan. That is a planning preference, not a medical estimate. Results are limited to mapped paths and recorded seats.
 
@@ -20,6 +20,7 @@ A rest resets the distance count in the plan. That is a planning preference, not
 | Original Flushing import (`scripts/prepare_pilot.py`, Overpass) | Kept for the `live_pilot` API only. Not run; that API reports `data_unavailable`. The planner does not use it |
 | Field validation | Not done. Template and process in `docs/validation.md` |
 | Deployment | Docker image + Render Blueprint (`render.yaml`). See `DEPLOY.md` |
+| Map-first interface (Google map, bottom sheet / side panel) | Done; tested in Chromium at phone and desktop sizes with the real Google map, not yet on a real iPhone |
 | Home Screen app (iPhone/Android) | Manifest and icons added; tested in Chromium, not yet on a real iPhone |
 | Optional "propose a bench" planning experiment | Built for single trips (up to 3 hypothetical benches, with/without comparison). The "how many destinations become reachable" comparison is not built |
 
@@ -107,7 +108,7 @@ python scripts/benchmark.py
 ### Results after the NYC update (2026-10-26, macOS, Python 3.14)
 
 * Backend `pytest`: **756 passed** (adds tile-based area building, NYC-only trips and search, the prepared Flushing area, reloading evicted areas).
-* Frontend `vitest`: **28 passed**. Playwright (desktop + Pixel 7): **18 passed, 1 skipped**, including the Flushing example walk on the real committed data and the Home Screen manifest.
+* Frontend `vitest`: **28 passed**. Playwright (desktop + Pixel 7, with the real Google map): **18 passed, 1 skipped**, including the Flushing example walk on the real committed data, placing a hypothetical bench by tapping the Google map, the bottom sheet, and the Home Screen manifest. Run it with the key exported: `set -a; . ../.env; set +a; npx playwright test`.
 * The server also ran from a clean Python 3.13 environment with only `backend/requirements-server.txt`: peak memory about 320 MB with Flushing plus four built areas.
 
 ### Results from the build session (2026-10-26, 2-vCPU Linux cloud workspace)
@@ -150,7 +151,7 @@ docs/                  architecture, algorithm, data sources, validation, demo s
 * In the fallback, once the smallest possible longest leg is found, the route minimizes total distance; other legs may also exceed your limit even where an extra rest could shorten them (see `docs/algorithm.md`).
 * No walking-time estimates (no pace is assumed).
 * NYC place/address search uses Photon on explicit submission. Building and park results are moved to the nearest walkway, which is not necessarily the entrance; users can move the pin.
-* The default basemap uses the OpenStreetMap tile server and needs internet; the synthetic demo does not.
+* The map is Google Maps and needs internet and a key (`GOOGLE_MAPS_API_KEY`, see DEPLOY.md); without them the route list still works. The synthetic demo hides the Google map and draws its own streets.
 * The service area coordinates in `data/pilot_area.json` are approximate and should be checked on the map.
 
 ## Data and licenses

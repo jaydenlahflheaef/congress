@@ -19,9 +19,10 @@
    app/routing/planner.py   one trip: attach, search, redraw, build the response
    app/main.py           HTTP API, optional static hosting of the built frontend
 
- frontend/  React + TypeScript + Vite + React Leaflet
+ frontend/  React + TypeScript + Vite + Google Maps (@vis.gl/react-google-maps)
    hooks/useRoutePlanner.ts  debounced requests, abort + "latest wins"
-   components/RouteMap.tsx   Leaflet map (basemap optional)
+   components/MapView.tsx    full-screen Google map with the route, seats and stops
+   components/Sheet.tsx      bottom sheet on phones, side panel on wide screens
    components/ResultCard.tsx status, metrics, itinerary, seat details, exclude
    components/PrintSummary.tsx  print-only text summary
 ```

@@ -8,3 +8,7 @@ services:
     region: virginia
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
+    envVars:
+      # Google Maps browser key; Render asks for the value (it is not stored in Git).
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
