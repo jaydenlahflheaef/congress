@@ -14,6 +14,7 @@ function renderCard(result: RouteResponse | null, extra: Partial<Parameters<type
     networkError: null,
     selectedLeg: null,
     onSelectLeg: vi.fn(),
+    onStartWalkLeg: vi.fn(),
     excluded: [],
     seatsById: {},
     onExclude: vi.fn(),
@@ -27,7 +28,7 @@ function renderCard(result: RouteResponse | null, extra: Partial<Parameters<type
 }
 
 describe('ResultCard', () => {
-  it('links each stretch to Google Maps walking directions, except hypothetical benches', () => {
+  it('guides each stretch on the in-app map when Walk leg is clicked, except hypothetical benches', async () => {
     const r = okRoute(150, ['s1']);
     r.legs[1] = { ...r.legs[1], to_id: '@hyp1', to_label: 'Hypothetical bench 1' };
     r.route_geojson = {
@@ -38,14 +39,12 @@ describe('ResultCard', () => {
         geometry: { type: 'LineString', coordinates: [[-73.83, 40.75 + i / 1000], [-73.8301, 40.751 + i / 1000]] },
       })),
     };
-    renderCard(r);
-    const links = screen.getAllByRole('link', { name: /in Google Maps$/ });
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAccessibleName('Walking directions to Seat 1 in Google Maps');
-    expect(links[0]).toHaveAttribute(
-      'href',
-      'https://www.google.com/maps/dir/?api=1&destination=40.751000,-73.830100&travelmode=walking',
-    );
+    const props = renderCard(r);
+    const buttons = screen.getAllByRole('button', { name: /on map$/ });
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName('Walk to Seat 1 on map');
+    await userEvent.click(buttons[0]);
+    expect(props.onStartWalkLeg).toHaveBeenCalledWith(1);
   });
 
   it('shows a feasible result with metrics and itinerary', () => {
@@ -143,6 +142,7 @@ describe('subway elevator alerts and nearby restrooms', () => {
   it('renders station elevator outage alerts, monthly reliability, and nearby restrooms', async () => {
     const base = okRoute(150, ['s1'], 300);
     const onUseAsDestination = vi.fn();
+    const onFocusRestroom = vi.fn();
     const r: RouteResponse = {
       ...base,
       station_elevators: [
@@ -205,7 +205,7 @@ describe('subway elevator alerts and nearby restrooms', () => {
         },
       ],
     };
-    renderCard(r, { onUseAsDestination });
+    renderCard(r, { onUseAsDestination, onFocusRestroom });
     const elBox = screen.getByTestId('station-elevators');
     expect(elBox).toHaveTextContent('Flushing-Main St (7)');
     expect(elBox).toHaveTextContent('1 of 1 elevator out');
@@ -216,6 +216,8 @@ describe('subway elevator alerts and nearby restrooms', () => {
     const rrBox = screen.getByTestId('nearby-restrooms');
     expect(rrBox).toHaveTextContent('Public restrooms near this walk (1)');
     expect(rrBox).toHaveTextContent('Flushing Library, QPL');
+    await userEvent.click(screen.getByRole('button', { name: 'Show on map' }));
+    expect(onFocusRestroom).toHaveBeenCalledWith('rr-1');
     await userEvent.click(screen.getByRole('button', { name: 'Plan walk to this restroom' }));
     expect(onUseAsDestination).toHaveBeenCalledWith({
       name: 'Flushing Library, QPL (Restroom)',

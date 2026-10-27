@@ -1541,3 +1541,79 @@ a { color: var(--sky); }
 }
 
 
+
+/* In-app walk guidance, live position dot, and two-finger map rotation */
+.map-shell {
+  overflow: hidden;
+}
+.map-rotator {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transition: transform 0.08s ease-out;
+}
+.compass-reset {
+  position: absolute;
+  z-index: 26;
+  top: calc(var(--top-bottom) + 12px);
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+}
+.compass-needle {
+  color: var(--primary);
+  font-size: 0.75rem;
+  display: inline-block;
+}
+.walk-banner {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.walk-banner-info {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  flex: 1;
+}
+.walk-step-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+.walk-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.walk-banner-actions .btn.small {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+}
+.leg-nav.active {
+  background: var(--teal);
+  color: var(--on-color);
+  border-color: var(--teal);
+}
+.user-location-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2f7fd0;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(47, 127, 208, 0.28), 0 2px 6px rgba(0, 0, 0, 0.35);
+}

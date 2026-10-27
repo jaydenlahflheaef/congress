@@ -18,7 +18,7 @@ import { useRoutePlanner } from "./hooks/useRoutePlanner";
 import { useBottomEdge, useMediaQuery } from "./hooks/useLayout";
 import { LimitControl } from "./components/LimitControl";
 import { PlaceSearch } from "./components/PlaceSearch";
-import { ResultCard, directionsUrl } from "./components/ResultCard";
+import { ResultCard } from "./components/ResultCard";
 import { PrintSummary } from "./components/PrintSummary";
 import { HowItWorks } from "./components/HowItWorks";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -83,9 +83,14 @@ export default function App() {
   const [enabled, setEnabled] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [showRestrooms, setShowRestrooms] = useState(false);
+  const [focusedRestroomId, setFocusedRestroomId] = useState<string | null>(
+    null,
+  );
   const [seats, setSeats] = useState<Seat[]>([]);
   const [restrooms, setRestrooms] = useState<PublicRestroom[]>([]);
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null);
+  const [walkingLeg, setWalkingLeg] = useState<number | null>(null);
+  const [userLocation, setUserLocation] = useState<LatLon | null>(null);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [page, setPage] = useState<"plan" | "how">(
     window.location.hash === "#how" ? "how" : "plan",
@@ -101,6 +106,7 @@ export default function App() {
   const areaRequest = useRef<AbortController | null>(null);
   const areaRevision = useRef(0);
   const locationRevision = useRef(0);
+  const watchIdRef = useRef<number | null>(null);
   const [topEl, setTopEl] = useState<HTMLElement | null>(null);
   // Where the floating search card ends, measured on screen so it includes
   // the iPhone status-bar inset; the raised sheet stops below it.
@@ -128,8 +134,40 @@ export default function App() {
       ctrl.abort();
       areaRequest.current?.abort();
       locationRevision.current++;
+      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
     };
   }, []);
+
+  // Optional live position tracking while walking mode is active
+  useEffect(() => {
+    if (walkingLeg === null) {
+      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      return;
+    }
+    if (mode === "nearby" && navigator.geolocation?.watchPosition) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+          });
+        },
+        () => undefined,
+        { enableHighAccuracy: true, maximumAge: 5000 },
+      );
+    }
+    return () => {
+      if (watchIdRef.current !== null && navigator.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [walkingLeg, mode]);
 
   const modeCfg =
     mode === "synthetic_demo"
@@ -172,6 +210,8 @@ export default function App() {
   const resetTrip = useCallback(() => {
     setExcluded([]);
     setSelectedLeg(null);
+    setWalkingLeg(null);
+    setFocusedRestroomId(null);
   }, []);
   const invalidate = () => {
     areaRevision.current++;
@@ -283,6 +323,10 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         if (ticket !== locationRevision.current) return;
+        setUserLocation({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        });
         setOrigin({
           name: "My location",
           lat: pos.coords.latitude,
@@ -374,6 +418,13 @@ export default function App() {
       /* keep existing snapshot if refresh fails */
     }
   };
+  const startWalkLeg = (legIndex: number | null) => {
+    setWalkingLeg(legIndex);
+    setSelectedLeg(legIndex);
+    if (legIndex !== null) {
+      setSnap("peek");
+    }
+  };
   const examples = mode === "nearby" ? (config?.modes.nearby?.trips ?? []) : [];
   const seatsById = useMemo(
     () => Object.fromEntries(seats.map((s) => [s.id, s])),
@@ -406,13 +457,7 @@ export default function App() {
   const hasResult = !!result || planner.pending || !!planner.networkError;
   const hasRoute =
     !!result && (result.status === "ok" || result.status === "limit_unmet");
-  const firstLegEnd = result?.route_geojson?.features.find(
-    (f) => f.properties.index === 1,
-  )?.geometry.coordinates;
-  const startUrl =
-    hasRoute && firstLegEnd?.length
-      ? directionsUrl(firstLegEnd[firstLegEnd.length - 1] as [number, number])
-      : null;
+  const canStartWalk = hasRoute && result.legs.length > 0;
   const padding = mobile
     ? { top: topBottom + 16, right: 24, bottom: sheetH + 24, left: 24 }
     : { top: 40, right: 40, bottom: 40, left: SIDE_PANEL_PX + 48 };
@@ -458,16 +503,22 @@ export default function App() {
               </span>
             )}
           </div>
-          {startUrl && (
-            <a
+          {canStartWalk && (
+            <button
+              type="button"
               className="btn primary start"
-              href={startUrl}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`Start walking: directions to ${result.legs[0]?.to_label ?? "the first stop"} in Google Maps`}
+              onClick={() =>
+                startWalkLeg(walkingLeg !== null ? null : (selectedLeg ?? 1))
+              }
+              aria-pressed={walkingLeg !== null}
+              aria-label={
+                walkingLeg !== null
+                  ? "End walk guidance"
+                  : `Start walking: guide to ${result.legs[0]?.to_label ?? "the first stop"}`
+              }
             >
-              <Icon name="walk" /> Start
-            </a>
+              <Icon name="walk" /> {walkingLeg !== null ? "End walk" : "Start"}
+            </button>
           )}
         </div>
       )}
@@ -530,6 +581,11 @@ export default function App() {
         seats={seats}
         restrooms={restrooms}
         showRestrooms={showRestrooms}
+        focusedRestroomId={focusedRestroomId}
+        onFocusRestroom={setFocusedRestroomId}
+        userLocation={userLocation}
+        walkingLeg={walkingLeg}
+        onStartWalkLeg={startWalkLeg}
         result={result}
         origin={origin}
         destination={destination}
@@ -539,7 +595,10 @@ export default function App() {
         onCancelPick={() => setArmed(null)}
         onMapTap={() => setSnap("peek")}
         selectedLeg={selectedLeg}
-        onSelectLeg={setSelectedLeg}
+        onSelectLeg={(i) => {
+          setSelectedLeg(i);
+          if (walkingLeg !== null && i !== null) setWalkingLeg(i);
+        }}
         showComparison={showComparison}
         excluded={excluded}
         onExclude={onExclude}
@@ -650,6 +709,8 @@ export default function App() {
             networkError={planner.networkError}
             selectedLeg={selectedLeg}
             onSelectLeg={setSelectedLeg}
+            walkingLeg={walkingLeg}
+            onStartWalkLeg={startWalkLeg}
             excluded={excluded}
             seatsById={seatsById}
             onExclude={onExclude}
@@ -657,6 +718,11 @@ export default function App() {
             onPrint={() => window.print()}
             limitationNote={config.limitation_note}
             onRefreshElevators={onRefreshElevators}
+            onFocusRestroom={(id) => {
+              setShowRestrooms(true);
+              setFocusedRestroomId(id);
+              setSnap("peek");
+            }}
             onUseAsDestination={(pt) => {
               if (!origin) return;
               invalidate();

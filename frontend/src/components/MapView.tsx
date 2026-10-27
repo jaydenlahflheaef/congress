@@ -84,6 +84,11 @@ interface Props {
   seats: Seat[];
   restrooms?: PublicRestroom[];
   showRestrooms?: boolean;
+  focusedRestroomId?: string | null;
+  onFocusRestroom?: (id: string | null) => void;
+  userLocation?: LatLon | null;
+  walkingLeg?: number | null;
+  onStartWalkLeg?: (index: number | null) => void;
   result: RouteResponse | null;
   origin: NamedPoint | null;
   destination: NamedPoint | null;
@@ -301,7 +306,8 @@ function Overlays(
   const blank = dark ? "#251d2b" : "#f8f0e6";
 
   const routePts = legs.flatMap((f) => f.geometry.coordinates as Pt[]);
-  const selected = legs.find((f) => f.properties.index === props.selectedLeg);
+  const activeLegIndex = props.walkingLeg ?? props.selectedLeg;
+  const selected = legs.find((f) => f.properties.index === activeLegIndex);
   const endpoints = [props.origin, props.destination]
     .filter((p): p is NamedPoint => !!p)
     .map((p) => [p.lon, p.lat] as Pt);
@@ -327,15 +333,17 @@ function Overlays(
   const popup = props.popup ? seatById.get(props.popup) : undefined;
 
   const visibleRestrooms = useMemo(() => {
-    if (!props.showRestrooms) return [];
+    if (!props.showRestrooms && !props.focusedRestroomId) return [];
     const byId = new globalThis.Map<string, PublicRestroom>();
     for (const r of props.restrooms ?? []) byId.set(r.id, r);
     for (const r of result?.nearby_restrooms ?? []) byId.set(r.id, r);
     return Array.from(byId.values());
-  }, [props.showRestrooms, props.restrooms, result]);
+  }, [props.showRestrooms, props.focusedRestroomId, props.restrooms, result]);
+
+  const activeRrId = props.rrPopup ?? props.focusedRestroomId ?? null;
   const rrPopup = useMemo(
-    () => (props.rrPopup ? visibleRestrooms.find((r) => r.id === props.rrPopup) : undefined),
-    [props.rrPopup, visibleRestrooms],
+    () => (activeRrId ? visibleRestrooms.find((r) => r.id === activeRrId) : undefined),
+    [activeRrId, visibleRestrooms],
   );
 
   if (status !== APILoadingStatus.LOADED) return null;
@@ -355,9 +363,16 @@ function Overlays(
       />
       <FitTo
         points={(selected?.geometry.coordinates as Pt[]) ?? []}
-        token={`leg-${props.selectedLeg}`}
+        token={`leg-${activeLegIndex}`}
         padding={props.padding}
       />
+      {rrPopup && (
+        <FitTo
+          points={[[rrPopup.lon, rrPopup.lat]]}
+          token={`rr-${rrPopup.id}`}
+          padding={props.padding}
+        />
+      )}
 
       {cover && (
         <Polygon
@@ -402,7 +417,7 @@ function Overlays(
       )}
       {legs.map((f) => {
         const over = !!f.properties.over_limit;
-        const isSel = f.properties.index === props.selectedLeg;
+        const isSel = f.properties.index === activeLegIndex;
         const path = toPath(f.geometry.coordinates as Pt[]);
         const select = (e: google.maps.MapMouseEvent) => {
           // While picking a point, a tap on the route places it there.
@@ -448,6 +463,7 @@ function Overlays(
               zIndex={eligible ? 2 : 1}
               onClick={() => {
                 props.setRrPopup(null);
+                props.onFocusRestroom?.(null);
                 props.setPopup(s.id);
               }}
             >
@@ -486,6 +502,7 @@ function Overlays(
             zIndex={20}
             onClick={() => {
               props.setRrPopup(null);
+              props.onFocusRestroom?.(null);
               props.setPopup(s.id);
             }}
           >
@@ -545,6 +562,16 @@ function Overlays(
           <Pin text="B" cls="endpoint destination" />
         </HtmlMarker>
       )}
+      {props.userLocation && (
+        <HtmlMarker
+          lat={props.userLocation.lat}
+          lng={props.userLocation.lon}
+          title="Your live position"
+          zIndex={35}
+        >
+          <div className="user-location-dot" />
+        </HtmlMarker>
+      )}
 
       {popup && (
         <InfoWindow
@@ -584,7 +611,10 @@ function Overlays(
         <InfoWindow
           position={{ lat: rrPopup.lat, lng: rrPopup.lon }}
           pixelOffset={[0, -10]}
-          onCloseClick={() => props.setRrPopup(null)}
+          onCloseClick={() => {
+            props.setRrPopup(null);
+            props.onFocusRestroom?.(null);
+          }}
           headerContent={<strong>{rrPopup.name}</strong>}
         >
           <div className="seat-popup">
@@ -626,6 +656,9 @@ export default function MapView(props: Props) {
   const { result } = props;
   const [popup, setPopup] = useState<string | null>(null);
   const [rrPopup, setRrPopup] = useState<string | null>(null);
+  const [rotationDeg, setRotationDeg] = useState(0);
+  const touchStartAngle = useRef<number | null>(null);
+  const touchBaseRot = useRef(0);
   const authFailed = useGoogleAuthFailure();
   const dark = useDarkTheme();
   const region = props.config.region_bounds;
@@ -634,13 +667,20 @@ export default function MapView(props: Props) {
     !!result && (result.status === "ok" || result.status === "limit_unmet");
   const legs = hasRoute ? (result!.route_geojson?.features ?? []) : [];
 
+  const activeWalkLeg =
+    hasRoute && props.walkingLeg != null
+      ? result!.legs.find((l) => l.index === props.walkingLeg) ?? null
+      : null;
+
   const state = {
     "data-testid": "route-map",
     "data-legs": legs.length,
     "data-over-legs": legs.filter((f) => f.properties.over_limit).length,
     "data-stops": hasRoute ? result!.stops.length : 0,
+    "data-rotation": Math.round(rotationDeg),
   };
-  const banner = props.armed && (
+
+  const banner = props.armed ? (
     <div className="map-banner" role="status">
       {props.armed === "bench"
         ? "Tap a mapped walkway to place a hypothetical bench."
@@ -649,7 +689,81 @@ export default function MapView(props: Props) {
         Cancel
       </button>
     </div>
-  );
+  ) : activeWalkLeg ? (
+    <div className="map-banner walk-banner" role="status" data-testid="walk-guidance-banner">
+      <div className="walk-banner-info">
+        <span className="walk-step-label">
+          Step {activeWalkLeg.index} of {result!.legs.length}
+        </span>
+        <strong>
+          {activeWalkLeg.from_label} → {activeWalkLeg.to_label} (
+          {fmtM(activeWalkLeg.distance_m)})
+        </strong>
+      </div>
+      <div className="walk-banner-actions">
+        <button
+          type="button"
+          className="btn small"
+          disabled={activeWalkLeg.index <= 1}
+          onClick={() => props.onStartWalkLeg?.(activeWalkLeg.index - 1)}
+        >
+          Prev
+        </button>
+        {activeWalkLeg.index < result!.legs.length ? (
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => props.onStartWalkLeg?.(activeWalkLeg.index + 1)}
+          >
+            Next stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn small"
+            onClick={() => props.onStartWalkLeg?.(null)}
+          >
+            Done
+          </button>
+        )}
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => props.onStartWalkLeg?.(null)}
+        >
+          End walk
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const getTouchAngle = (touches: React.TouchList) => {
+    const dx = touches[1].clientX - touches[0].clientX;
+    const dy = touches[1].clientY - touches[0].clientY;
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      touchStartAngle.current = getTouchAngle(e.touches);
+      touchBaseRot.current = rotationDeg;
+    }
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartAngle.current !== null) {
+      const current = getTouchAngle(e.touches);
+      let next = touchBaseRot.current + (current - touchStartAngle.current);
+      next = ((((next + 180) % 360) + 360) % 360) - 180;
+      setRotationDeg(next);
+    }
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      touchStartAngle.current = null;
+    }
+  };
 
   if (!props.apiKey || authFailed)
     return (
@@ -663,42 +777,80 @@ export default function MapView(props: Props) {
       </div>
     );
 
+  const isRotated = Math.abs(rotationDeg) > 1;
+
   return (
-    <div className={`map-shell no-print ${props.armed ? "armed" : ""}`} {...state}>
+    <div
+      className={`map-shell no-print ${props.armed ? "armed" : ""}`}
+      {...state}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+    >
       <MapErrorBoundary>
-        <APIProvider apiKey={props.apiKey}>
-          <Map
-            className="gmap"
-            defaultBounds={
-              region
-                ? { west: region[0], south: region[1], east: region[2], north: region[3], padding: 20 }
-                : { west: -74.26, south: 40.47, east: -73.7, north: 40.92 }
-            }
-            styles={dark ? DARK_MAP : LIGHT_MAP}
-            gestureHandling="greedy"
-            disableDefaultUI
-            zoomControl={desktop}
-            clickableIcons={false}
-            backgroundColor={dark ? "#1c1622" : "#f8f0e6"}
-            onClick={(e) => {
-              const ll = e.detail.latLng;
-              if (props.armed && ll) props.onPick(ll.lat, ll.lng);
-              else props.onMapTap();
-              setPopup(null);
-              setRrPopup(null);
-            }}
-          >
-            <Overlays
-              {...props}
-              popup={popup}
-              setPopup={setPopup}
-              rrPopup={rrPopup}
-              setRrPopup={setRrPopup}
-            />
-          </Map>
-          <LoadProblem />
-        </APIProvider>
+        <div
+          className={`map-rotator ${isRotated ? "is-rotated" : ""}`}
+          style={
+            isRotated
+              ? { transform: `rotate(${rotationDeg}deg) scale(1.42)` }
+              : undefined
+          }
+        >
+          <APIProvider apiKey={props.apiKey}>
+            <Map
+              className="gmap"
+              defaultBounds={
+                region
+                  ? { west: region[0], south: region[1], east: region[2], north: region[3], padding: 20 }
+                  : { west: -74.26, south: 40.47, east: -73.7, north: 40.92 }
+              }
+              styles={dark ? DARK_MAP : LIGHT_MAP}
+              gestureHandling="greedy"
+              disableDefaultUI
+              zoomControl={desktop}
+              rotateControl={true}
+              clickableIcons={false}
+              backgroundColor={dark ? "#1c1622" : "#f8f0e6"}
+              onClick={(e) => {
+                const ll = e.detail.latLng;
+                if (props.armed && ll) props.onPick(ll.lat, ll.lng);
+                else props.onMapTap();
+                setPopup(null);
+                setRrPopup(null);
+                props.onFocusRestroom?.(null);
+              }}
+            >
+              <Overlays
+                {...props}
+                popup={popup}
+                setPopup={setPopup}
+                rrPopup={rrPopup}
+                setRrPopup={setRrPopup}
+              />
+            </Map>
+            <LoadProblem />
+          </APIProvider>
+        </div>
       </MapErrorBoundary>
+      {isRotated && (
+        <button
+          type="button"
+          className="compass-reset"
+          aria-label="Reset map rotation to north"
+          title="Reset map rotation to north"
+          onClick={() => setRotationDeg(0)}
+        >
+          <span
+            className="compass-needle"
+            style={{ transform: `rotate(${rotationDeg}deg)` }}
+            aria-hidden="true"
+          >
+            ▲
+          </span>
+          <span>N</span>
+        </button>
+      )}
       {banner}
     </div>
   );

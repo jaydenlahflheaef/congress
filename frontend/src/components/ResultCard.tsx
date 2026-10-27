@@ -17,6 +17,8 @@ interface Props {
   networkError: string | null;
   selectedLeg: number | null;
   onSelectLeg: (index: number | null) => void;
+  walkingLeg?: number | null;
+  onStartWalkLeg?: (index: number | null) => void;
   excluded: string[];
   seatsById: Record<string, Seat>;
   onExclude: (id: string) => void;
@@ -25,12 +27,11 @@ interface Props {
   limitationNote: string;
   onRefreshElevators?: () => Promise<void>;
   onUseAsDestination?: (point: { name: string; lat: number; lon: number }) => void;
+  onFocusRestroom?: (id: string) => void;
 }
 
 /**
- * Google Maps walking directions from wherever the viewer is now. Leaving
- * out the origin is what lets Google Maps start turn-by-turn navigation.
- * Maps URLs need no API key.
+ * Legacy helper kept for test compatibility if imported directly.
  */
 export function directionsUrl([lon, lat]: [number, number]): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat.toFixed(6)},${lon.toFixed(6)}&travelmode=walking`;
@@ -211,6 +212,7 @@ function StationElevatorsSection({
 function NearbyRestroomsSection({
   restrooms,
   onUseAsDestination,
+  onFocusRestroom,
 }: {
   restrooms: PublicRestroom[];
   onUseAsDestination?: (point: {
@@ -218,6 +220,7 @@ function NearbyRestroomsSection({
     lat: number;
     lon: number;
   }) => void;
+  onFocusRestroom?: (id: string) => void;
 }) {
   if (!restrooms.length) return null;
   return (
@@ -256,14 +259,15 @@ function NearbyRestroomsSection({
               )}
             </div>
             <div className="restroom-actions">
-              <a
-                className="btn small"
-                href={directionsUrl([rr.lon, rr.lat])}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Icon name="walk" size={15} /> Walk there
-              </a>
+              {onFocusRestroom && (
+                <button
+                  type="button"
+                  className="btn small"
+                  onClick={() => onFocusRestroom(rr.id)}
+                >
+                  <Icon name="pin" size={15} /> Show on map
+                </button>
+              )}
               {onUseAsDestination && (
                 <button
                   type="button"
@@ -276,7 +280,7 @@ function NearbyRestroomsSection({
                     })
                   }
                 >
-                  Plan walk to this restroom
+                  <Icon name="walk" size={15} /> Plan walk to this restroom
                 </button>
               )}
             </div>
@@ -468,46 +472,58 @@ export function ResultCard(props: Props) {
 
               <h3>Your walk, step by step</h3>
               <p className="muted small">
-                When you set off, tap <strong>Google Maps</strong> on a stretch
-                for turn-by-turn walking directions from where you are. Google
-                may pick slightly different streets.
+                Tap a stretch or <strong>Walk leg</strong> to follow that step
+                directly on the map inside EzWay.
               </p>
               <ol className="legs" data-testid="leg-list">
-                {result.legs.map((leg) => (
-                  <li key={leg.index}>
-                    <button
-                      type="button"
-                      className={`leg ${leg.over_limit ? "over" : ""} ${props.selectedLeg === leg.index ? "selected" : ""}`}
-                      onClick={() =>
-                        props.onSelectLeg(
-                          props.selectedLeg === leg.index ? null : leg.index,
-                        )
-                      }
-                      aria-pressed={props.selectedLeg === leg.index}
-                    >
-                      <span>
-                        {leg.from_label} → {leg.to_label}
-                      </span>
-                      <span className="leg-dist">{fmtM(leg.distance_m)}</span>
-                      {leg.over_limit && (
-                        <span className="tag amber">
-                          over your limit by {fmtM(leg.exceeds_by_m)}
-                        </span>
-                      )}
-                    </button>
-                    {!leg.to_id.startsWith("@hyp") && legEnd(leg.index) && (
-                      <a
-                        className="leg-nav"
-                        href={directionsUrl(legEnd(leg.index)!)}
-                        target="_blank"
-                        rel="noreferrer"
-                        aria-label={`Walking directions to ${leg.to_label} in Google Maps`}
+                {result.legs.map((leg) => {
+                  const isActive =
+                    props.selectedLeg === leg.index ||
+                    props.walkingLeg === leg.index;
+                  return (
+                    <li key={leg.index}>
+                      <button
+                        type="button"
+                        className={`leg ${leg.over_limit ? "over" : ""} ${isActive ? "selected" : ""}`}
+                        onClick={() =>
+                          props.onSelectLeg(
+                            props.selectedLeg === leg.index ? null : leg.index,
+                          )
+                        }
+                        aria-pressed={isActive}
                       >
-                        <Icon name="walk" size={16} /> Google Maps
-                      </a>
-                    )}
-                  </li>
-                ))}
+                        <span>
+                          {leg.from_label} → {leg.to_label}
+                        </span>
+                        <span className="leg-dist">{fmtM(leg.distance_m)}</span>
+                        {leg.over_limit && (
+                          <span className="tag amber">
+                            over your limit by {fmtM(leg.exceeds_by_m)}
+                          </span>
+                        )}
+                      </button>
+                      {!leg.to_id.startsWith("@hyp") && legEnd(leg.index) && (
+                        <button
+                          type="button"
+                          className={`leg-nav ${props.walkingLeg === leg.index ? "active" : ""}`}
+                          onClick={() => {
+                            if (props.onStartWalkLeg) {
+                              props.onStartWalkLeg(leg.index);
+                            } else {
+                              props.onSelectLeg(leg.index);
+                            }
+                          }}
+                          aria-label={`Walk to ${leg.to_label} on map`}
+                        >
+                          <Icon name="walk" size={16} />{" "}
+                          {props.walkingLeg === leg.index
+                            ? "Walking"
+                            : "Walk leg"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
 
               {result.stops.length > 0 && (
@@ -530,6 +546,7 @@ export function ResultCard(props: Props) {
                   <NearbyRestroomsSection
                     restrooms={result.nearby_restrooms}
                     onUseAsDestination={props.onUseAsDestination}
+                    onFocusRestroom={props.onFocusRestroom}
                   />
                 )}
             </>
